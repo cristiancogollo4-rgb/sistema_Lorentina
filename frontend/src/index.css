@@ -1,0 +1,338 @@
+/* VARIABLES DE COLOR */
+:root {
+  --color-primario: #e5d3c3; /* Beige */
+  --color-secundario: #5D4037;
+  --color-fondo-caja: #582e2e; /* Marrón Caja */
+  --color-texto: #e5d3c3;
+  --color-fondo-brand: #582e2e;
+  --color-texto-brand: #e5d3c3;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #000; 
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden; /* Evita scrolls dobles */
+}
+
+/* =========================================
+   ESTILOS DEL LOGIN 
+   ========================================= */
+
+/* --- CARRUSEL CINEMATOGRÁFICO --- */
+.background-carousel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  background-color: #000; /* Fondo negro base para evitar parpadeos */
+}
+
+.bg-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  z-index: 1;
+  
+  opacity: 0;
+  transform: scale(1); /* Empieza tamaño normal */
+  transition: opacity 1.5s ease-in-out, transform 10s ease-out; /* Transición LENTA */
+}
+
+.bg-image.active {
+  opacity: 1;
+  transform: scale(1.15); /* Zoom lento hacia el 115% */
+}
+
+/* --- DEGRADADO --- */
+.bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  /* Degradado más elegante: */
+  /* Oscuro abajo a la derecha, Vino arriba a la izquierda */
+  background: linear-gradient(
+      135deg, 
+      rgba(88, 46, 46, 0.5) 0%,   /* Vino transparente arriba */
+      rgba(0, 0, 0, 0.6) 50%,     /* Transición a negro */
+      rgba(0, 0, 0, 0.95) 100%    /* Negro casi sólido abajo */
+  );
+  pointer-events: none;
+  backdrop-filter: blur(2px); /* Un toque borroso sutil al fondo para resaltar el login */
+}
+
+.login-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10; /* Contenido encima del fondo */
+}
+
+.login-box {
+  width: 340px;
+  background-color: var(--color-fondo-caja);
+  padding: 30px;
+  border-radius: 20px;
+  text-align: center;
+  position: relative;
+  box-sizing: border-box;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6); 
+  z-index: 100;
+}
+
+.logo-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.logo-img {
+  /* 1. Aumentamos el tamaño máximo para que se vea más el dibujo */
+  max-width: 280px; 
+  height: auto;
+  object-fit: contain;
+  
+  /* 2. Truco visual: Margen negativo abajo */
+  /* Esto hace que el título 'Bienvenido' ignore el espacio vacío de la foto y suba */
+  margin-bottom: -80px; 
+  
+  /* 3. Opcional: Una sombra suave al logo para que destaque */
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+}
+
+h1 {
+  color: var(--color-primario);
+  margin-bottom: 5px;
+  font-size: 1.8rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.subtitle {
+  color: #ccc;
+  margin-bottom: 30px;
+  font-size: 0.9rem;
+}
+
+.input-group {
+  text-align: left;
+  margin-bottom: 15px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: #d7ccc8;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+/* --- FIX IMPORTANTE: SCOPED INPUTS --- */
+/* Solo los inputs DENTRO del login serán oscuros con letra blanca */
+.login-box input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #8d6e63;
+  background-color: rgba(255,255,255,0.1);
+  color: white; /* AQUÍ ESTABA EL PROBLEMA DEL DASHBOARD */
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 1rem;
+  transition: border 0.3s;
+}
+
+.login-box input:focus {
+  border-color: var(--color-primario);
+  outline: none;
+  background-color: rgba(255,255,255,0.2);
+}
+
+.btn-login {
+  width: 100%;
+  padding: 14px;
+  background-color: var(--color-primario);
+  color: #5d4037;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.3s;
+}
+
+.btn-login:hover {
+  background-color: #fff;
+}
+
+.error-msg {
+  background-color: rgba(255, 0, 0, 0.1);
+  border: 1px solid red;
+  color: #ffcdd2;
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+}
+
+/* =========================================
+   ESTILOS DEL DASHBOARD (MODERNO)
+   ========================================= */
+
+.dashboard-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background-color: #f3f4f6;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 260px; 
+  min-width: 260px;
+  height: 100vh;
+  background-color: var(--color-fondo-caja);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+  position: relative; 
+  z-index: 100;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.sidebar-logo {
+  width: 180px; 
+  height: auto;
+  object-fit: contain;
+}
+
+.menu-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  z-index: 10; 
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 15px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  color: rgba(229, 211, 195, 0.7);
+  background-color: rgba(0, 0, 0, 0.2); 
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.menu-item:hover {
+  background-color: rgba(255,255,255, 0.1);
+  color: white;
+  transform: translateX(5px);
+}
+
+.menu-item.active {
+  background-color: var(--color-texto-brand);
+  color: var(--color-fondo-brand);
+  font-weight: bold;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  border: none;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 30px;
+}
+
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.search-bar {
+  background: white;
+  padding: 10px 20px;
+  border-radius: 30px;
+  width: 400px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  color: #333; /* Texto negro en el Dashboard */
+  outline: none;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.avatar-circle {
+  width: 45px;
+  height: 45px;
+  background-color: var(--color-fondo-brand);
+  color: var(--color-texto-brand);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* Tabla y tarjetas generales */
+.modern-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.modern-table th {
+  text-align: left;
+  color: #999;
+  font-weight: normal;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.modern-table td {
+  padding: 15px 0;
+  border-bottom: 1px solid #f9f9f9;
+  color: #444;
+}

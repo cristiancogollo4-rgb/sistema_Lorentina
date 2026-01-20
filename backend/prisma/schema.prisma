@@ -1,0 +1,178 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTA: En SQLite no existen los Enums, así que usaremos String.
+// Nosotros controlamos desde el código que solo se guarden valores válidos.
+
+// ======================
+// MODELOS
+// ======================
+
+model Usuario {
+  id        Int     @id @default(autoincrement())
+  nombre    String
+  apellido  String
+  username  String  @unique
+  password  String
+  rol       String? // Aquí guardamos "ARMADO,COSTURA", etc.
+  
+  // --- DATOS INDUSTRIALES (Lo nuevo) ---
+  cedula    String?
+  telefono  String?
+  activo    Boolean @default(true) 
+
+  // --- RELACIONES (ESTO ES LO QUE FALTABA) ---
+  // Prisma necesita estas líneas para conectar con las otras tablas
+  clientes  Cliente[]
+  ventas    Venta[]
+}
+
+model Cliente {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  telefono    String?
+  email       String?
+  direccion   String?
+  tipoCliente String   // Ej: "DETAL", "MAYORISTA"
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  vendedor   Usuario? @relation(fields: [vendedorId], references: [id])
+  vendedorId Int?
+
+  ventas  Venta[]
+  ordenes OrdenProduccion[]
+}
+
+model Producto {
+  id              Int      @id @default(autoincrement())
+  nombreModelo    String
+  descripcion     String?
+  precioDetal     Float
+  precioMayor     Float
+  costoProduccion Float
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  stock         Stock[]
+  ordenes       OrdenProduccion[]
+  detallesVenta DetalleVenta[]
+}
+
+model Local {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  direccion String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  stock   Stock[]
+  ventas  Venta[]
+  ordenes OrdenProduccion[]
+}
+
+model Stock {
+  id               Int      @id @default(autoincrement())
+  producto         Producto @relation(fields: [productoId], references: [id])
+  productoId       Int
+  talla            Int
+  local            Local    @relation(fields: [localId], references: [id])
+  localId          Int
+  paresDisponibles Int
+  updatedAt        DateTime @updatedAt
+
+  @@unique([productoId, talla, localId])
+}
+
+model OrdenProduccion {
+  id               Int       @id @default(autoincrement())
+  producto         Producto  @relation(fields: [productoId], references: [id])
+  productoId       Int
+  cliente          Cliente   @relation(fields: [clienteId], references: [id])
+  clienteId        Int
+  estado           String    // Ej: "EN_CORTE", "TERMINADA"
+  localDestino     Local     @relation(fields: [localDestinoId], references: [id])
+  localDestinoId   Int
+  fechaInicio      DateTime
+  fechaFinEstimada DateTime?
+  createdAt        DateTime  @default(now())
+
+  tallas   OrdenProduccionTalla[]
+  procesos ProcesoProduccion[]
+}
+
+model OrdenProduccionTalla {
+  id                Int             @id @default(autoincrement())
+  ordenProduccion   OrdenProduccion @relation(fields: [ordenProduccionId], references: [id])
+  ordenProduccionId Int
+  talla             Int
+  cantidadPares     Int
+}
+
+model ProcesoProduccion {
+  id                Int             @id @default(autoincrement())
+  ordenProduccion   OrdenProduccion @relation(fields: [ordenProduccionId], references: [id])
+  ordenProduccionId Int
+  rol               String          // El rol encargado (Ej: "CORTADOR")
+  trabajadorId      Int?
+  fechaInicio       DateTime
+  fechaFin          DateTime?
+}
+
+model Venta {
+  id         Int      @id @default(autoincrement())
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  clienteId  Int
+  vendedor   Usuario  @relation(fields: [vendedorId], references: [id])
+  vendedorId Int
+  local      Local?   @relation(fields: [localId], references: [id])
+  localId    Int?
+  fechaVenta DateTime @default(now())
+  total      Float
+  metodoPago String
+
+  detalles DetalleVenta[]
+}
+
+model DetalleVenta {
+  id             Int      @id @default(autoincrement())
+  venta          Venta    @relation(fields: [ventaId], references: [id])
+  ventaId        Int
+  producto       Producto @relation(fields: [productoId], references: [id])
+  productoId     Int
+  talla          Int
+  cantidad       Int
+  precioUnitario Float
+}
+
+// Modelo para Zapatos Terminados
+model InventarioZapatos {
+  id          Int      @id @default(autoincrement())
+  referencia  String   // Ej: 1006
+  color       String   // Ej: MELAO
+  sucursal    String   // 'CABECERA' o 'FABRICA'
+  tipo        String   @default("PLANA")
+  
+  // Las tallas exactas de tus Excel
+  t35         Int      @default(0)
+  t36         Int      @default(0)
+  t37         Int      @default(0)
+  t38         Int      @default(0)
+  t39         Int      @default(0)
+  t40         Int      @default(0)
+  t41         Int      @default(0)
+  t42         Int      @default(0)
+  
+  total       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([referencia, color, sucursal]) // Para no duplicar el mismo zapato en la misma tienda
+}
