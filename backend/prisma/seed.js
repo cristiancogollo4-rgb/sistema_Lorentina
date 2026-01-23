@@ -1,108 +1,68 @@
-// backend/prisma/seed.js
+import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Iniciando la siembra de datos (Modo JS)...');
+  // 1. Encriptar la contraseña genérica "1234"
+  const password = await bcrypt.hash('1234', 10)
 
-  // 1. Crear Locales (Sedes)
-  const fabrica = await prisma.local.create({
-    data: {
-      nombre: 'Fábrica Principal',
-      direccion: 'Calle 10 # 5-20, Zona Industrial',
-      activo: true,
-    },
-  });
+  console.log('🌱 Iniciando carga de empleados con datos completos...')
 
-  const tiendaCentro = await prisma.local.create({
-    data: {
-      nombre: 'Tienda Centro',
-      direccion: 'Carrera 5 # 8-12',
-      activo: true,
-    },
-  });
+  // 2. Lista exacta con apellidos inventados y roles asignados
+  const empleados = [
+    // --- CORTE ---
+    { nombre: 'Jorge', apellido: 'Pérez', username: 'jorge.perez', rol: 'CORTE' },
+    { nombre: 'Jhon', apellido: 'Gómez', username: 'jhon.gomez', rol: 'CORTE' },
 
-  console.log('✅ Locales creados.');
+    // --- ARMADO ---
+    { nombre: 'Jackeline', apellido: 'Rojas', username: 'jackeline.rojas', rol: 'ARMADO' },
+    { nombre: 'Sandra', apellido: 'Milena', username: 'sandra.milena', rol: 'ARMADO' },
+    { nombre: 'Ana', apellido: 'Castellano', username: 'ana.castellano', rol: 'ARMADO' },
+    { nombre: 'Yuleidy', apellido: 'Méndez', username: 'yuleidy.mendez', rol: 'ARMADO' },
+    { nombre: 'Diana', apellido: 'Vargas', username: 'diana.vargas', rol: 'ARMADO' },
+    { nombre: 'Sandra', apellido: 'Olarte', username: 'sandra.olarte', rol: 'ARMADO' },
 
-  // 2. Crear Usuarios
-  const admin = await prisma.usuario.create({
-    data: {
-      nombre: 'Carlos',
-      apellido: 'Admin',
-      email: 'admin@lorentina.com',
-      password: 'admin123',
-      rol: 'ADMIN',
-      activo: true,
-    },
-  });
+    // --- COSTURA ---
+    { nombre: 'Yolanda', apellido: 'Díaz', username: 'yolanda.diaz', rol: 'COSTURA' },
+    { nombre: 'Andrea', apellido: 'Ruiz', username: 'andrea.ruiz', rol: 'COSTURA' },
+    { nombre: 'Viviana', apellido: 'Castro', username: 'viviana.castro', rol: 'COSTURA' },
 
-  const cortador = await prisma.usuario.create({
-    data: {
-      nombre: 'Pedro',
-      apellido: 'Perez',
-      email: 'pedro@lorentina.com',
-      password: '123',
-      rol: 'CORTADOR',
-    },
-  });
+    // --- SOLADURA ---
+    { nombre: 'Julian', apellido: 'Martínez', username: 'julian.martinez', rol: 'SOLADURA' },
+    { nombre: 'Cesar', apellido: 'Romero', username: 'cesar.romero', rol: 'SOLADURA' },
+    { nombre: 'Rodolfo', apellido: 'Vega', username: 'rodolfo.vega', rol: 'SOLADURA' },
+  ]
 
-  console.log('✅ Usuarios creados (Admin y Cortador).');
-
-  // 3. Crear Clientes
-  const clienteGenerico = await prisma.cliente.create({
-    data: {
-      nombre: 'Cliente Mostrador',
-      tipoCliente: 'DETAL',
-      email: 'ventas@lorentina.com',
-    },
-  });
-
-  console.log('✅ Cliente genérico creado.');
-
-  // 4. Crear un Producto (Zapato)
-  const zapatoEscolar = await prisma.producto.create({
-    data: {
-      nombreModelo: 'Mocasín Escolar Mafalda',
-      descripcion: 'Zapato escolar clásico en cuero, suela de goma.',
-      precioDetal: 85000,
-      precioMayor: 65000,
-      costoProduccion: 45000,
-      activo: true,
-    },
-  });
-
-  console.log('✅ Producto creado: Mocasín Escolar.');
-
-  // 5. Crear Stock Inicial
-  await prisma.stock.create({
-    data: {
-      productoId: zapatoEscolar.id,
-      localId: tiendaCentro.id,
-      talla: 36,
-      paresDisponibles: 5,
-    },
-  });
-
-  await prisma.stock.create({
-    data: {
-      productoId: zapatoEscolar.id,
-      localId: fabrica.id,
-      talla: 38,
-      paresDisponibles: 20,
-    },
-  });
-
-  console.log('✅ Inventario inicial cargado.');
-  console.log('🚀 ¡Base de datos lista para usar!');
+  for (const emp of empleados) {
+    // Verificamos si ya existe para no duplicar error
+    const existe = await prisma.usuario.findUnique({ where: { username: emp.username } })
+    
+    if (!existe) {
+      await prisma.usuario.create({
+        data: {
+          nombre: emp.nombre,
+          apellido: emp.apellido,
+          username: emp.username,
+          password: password,
+          rol: emp.rol,
+          activo: true,
+          telefono: '3000000000', // Teléfono genérico
+          cedula: '123456789'     // Cédula genérica
+        }
+      })
+      console.log(`✅ Creado: ${emp.nombre} ${emp.apellido} (${emp.rol})`)
+    } else {
+      console.log(`⚠️ Omitido (Ya existe): ${emp.username}`)
+    }
+  }
 }
 
 main()
   .catch((e) => {
-    console.error(e);
-    process.exit(1);
+    console.error(e)
+    process.exit(1)
   })
   .finally(async () => {
-    await prisma.$disconnect();
-  });
+    await prisma.$disconnect()
+  })

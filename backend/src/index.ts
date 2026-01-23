@@ -255,32 +255,124 @@ app.get('/api/usuarios', async (req: any, res: any) => {
   });
 
   // 4. LOGIN (ACTUALIZADO CON USERNAME Y BCRYPT)
-  app.post('/api/login', async (req: any, res: any) => {
-    const { username, password } = req.body;
-    
-    try {
-      // Buscar por USERNAME, no por email
-      const usuario = await prisma.usuario.findUnique({ where: { username } });
-      
-      if (!usuario) {
-          return res.status(401).json({ error: 'Usuario no encontrado' });
-      }
+ // 4. LOGIN (HÍBRIDO: Funciona para Web y para Android)
+app.post('/api/login', async (req: any, res: any) => {
+  const { username, password } = req.body;
 
-      // Verificar contraseña encriptada
-      const validPassword = await bcrypt.compare(password, usuario.password);
-      
-      if (!validPassword) {
-          return res.status(401).json({ error: 'Contraseña incorrecta' });
-      }
+  try {
+    const usuario = await prisma.usuario.findUnique({ where: { username } });
 
-      const { password: _, ...datosUsuario } = usuario;
-      res.json({ usuario: datosUsuario });
-      
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Error interno en login' });
+    if (!usuario) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
     }
-  });
+
+    const validPassword = await bcrypt.compare(password, usuario.password);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    // Quitamos la contraseña para no enviarla
+    const { password: _, ...datosUsuario } = usuario;
+
+    // --- EL TRUCO DE MAGIA AQUÍ ---
+    res.json({
+      // 1. FORMATO PARA ANDROID (Datos sueltos en la raíz)
+      ...datosUsuario, 
+      
+      // 2. FORMATO PARA LA WEB (Datos dentro de "usuario")
+      // Esto asegura que tu frontend de React/Vue/Angular NO se rompa
+      usuario: datosUsuario 
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error interno en login' });
+  }
+});
+
+  // ==========================================
+// 5. RUTAS DE PRODUCCIÓN
+// ==========================================
+
+// A. OBTENER CORTADORES (Para llenar el select)
+app.get('/api/empleados/corte', async (req: any, res: any) => {
+  try {
+    const cortadores = await prisma.usuario.findMany({
+      where: { rol: 'CORTE', activo: true }
+    });
+    res.json(cortadores);
+  } catch (error) {
+    res.status(500).json({ error: 'Error cargando cortadores' });
+  }
+});
+
+// B. CREAR ORDEN DE PRODUCCIÓN
+app.post('/api/produccion', async (req: any, res: any) => {
+  try {
+    const data = req.body;
+    
+    // Calcular total de pares sumando las tallas
+    const totalPares = 
+      (Number(data.t34)||0) + (Number(data.t35)||0) + (Number(data.t36)||0) +
+      (Number(data.t37)||0) + (Number(data.t38)||0) + (Number(data.t39)||0) +
+      (Number(data.t40)||0) + (Number(data.t41)||0) + (Number(data.t42)||0) +
+      (Number(data.t43)||0) + (Number(data.t44)||0);
+
+    const nuevaOrden = await prisma.ordenProduccion.create({
+      data: {
+        numeroOrden: `OP-${Date.now().toString().slice(-6)}`, // Genera OP-839210
+        referencia: data.referencia,
+        color: data.color,
+        materiales: data.materiales,
+        observacion: data.observacion,
+        destino: data.destino,
+        // Si viene cortadorId, lo convertimos a número
+        cortadorId: data.cortadorId ? Number(data.cortadorId) : null,
+        
+        // Tallas
+        t34: Number(data.t34)||0, t35: Number(data.t35)||0, t36: Number(data.t36)||0,
+        t37: Number(data.t37)||0, t38: Number(data.t38)||0, t39: Number(data.t39)||0,
+        t40: Number(data.t40)||0, t41: Number(data.t41)||0, t42: Number(data.t42)||0,
+        t43: Number(data.t43)||0, t44: Number(data.t44)||0,
+        
+        totalPares,
+        estado: 'EN_CORTE'
+      }
+    });
+
+    res.json(nuevaOrden);
+  } catch (error) {
+    console.error("Error creando orden:", error);
+    res.status(500).json({ error: 'Error interno al crear orden' });
+  }
+});
+
+// ==========================================
+// 6. RUTAS PARA LA APP MÓVIL (CORTADORES)
+// ==========================================
+
+// Obtener tareas asignadas a un empleado específico
+app.get('/api/mis-tareas/:empleadoId', async (req: any, res: any) => {
+  try {
+    const { empleadoId } = req.params;
+
+    const tareas = await prisma.ordenProduccion.findMany({
+      where: {
+        cortadorId: Number(empleadoId), // Filtra por el ID del cortador
+        estado: 'EN_CORTE'              // Solo muestra lo pendiente
+      },
+      orderBy: {
+        numeroOrden: 'desc'
+      }
+    });
+
+    res.json(tareas);
+  } catch (error) {
+    console.error("Error buscando tareas:", error);
+    res.status(500).json({ error: 'Error al cargar tareas' });
+  }
+});
 
 // --- INICIAR SERVIDOR ---
 app.listen(PORT, '0.0.0.0', () => {

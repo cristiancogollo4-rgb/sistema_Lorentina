@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Stock from './Stock';
 import Empleados from './Empleados';
+import Produccion from './Produccion';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ function Dashboard() {
            {activeTab === 'empleados' && <Empleados />}
            {activeTab === 'stock' && <Stock />}
            {activeTab === 'produccion' && <h2>Estado de la Producción</h2>}
-           {activeTab === 'fabricar' && <h2>Nueva Orden de Fabricación</h2>}
+           {activeTab === 'fabricar' && <Produccion />}
            {activeTab === 'ventas' && <h2>Registro de Ventas</h2>}
         </div>
 
