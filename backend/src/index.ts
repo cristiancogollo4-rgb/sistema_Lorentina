@@ -351,6 +351,26 @@ app.post('/api/produccion', async (req: any, res: any) => {
 // ==========================================
 // 6. RUTAS PARA LA APP MÓVIL (CORTADORES)
 // ==========================================
+// --- OBTENER PERFIL DE USUARIO ---
+app.get('/api/usuarios/:id', async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Devolvemos los datos (sin la contraseña por seguridad)
+    const { password, ...datosPublicos } = usuario;
+    res.json(datosPublicos);
+  } catch (error) {
+    console.error("Error al obtener perfil:", error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
 
 // Obtener tareas asignadas a un empleado específico
 app.get('/api/mis-tareas/:empleadoId', async (req: any, res: any) => {

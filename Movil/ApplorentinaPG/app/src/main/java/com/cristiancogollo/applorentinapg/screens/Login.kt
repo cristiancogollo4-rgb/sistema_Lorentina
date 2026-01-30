@@ -25,26 +25,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// Importamos Retrofit (asegúrate de tener tus clases creadas)
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import com.cristiancogollo.applorentinapg.network.RetrofitClient
+import kotlinx.coroutines.launch // Importante para la lógica nueva
 
-// Enum simple para usar en la navegación post-login
-enum class UserRole { VENDEDOR, ADMINISTRADOR, CORTADOR, ARMADOR, COSTURA, SIN_ROL }
+// Asegúrate de que UserResponse esté disponible
+// Si no, impórtalo o defínelo en tus modelos
 
 @Composable
 fun LorentinaLoginScreen(
-    // Este callback ahora devuelve el rol detectado y el objeto usuario completo si lo necesitas
-    onLoginSuccess: (String) -> Unit = {}
+    onLoginSuccess: (UserResponse) -> Unit = {} // Callback con el usuario completo
 ) {
-    // --- COLORES ORIGINALES ---
-    val ColorLorentinaFilter = Color(0x99C7E534)
-    val ColorGris = Color(0xFFa6a6a6)
-    val ColorSelector = Color(0xFFC2D706)
+    // --- COLORES ORIGINALES (TU DISEÑO) ---
+    val ColorLorentinaFilter = Color(0xCC5D4037)
+    val ColorGris = Color(0xFF5D4037)
+    val ColorSelector = Color(0xFF5D4037)
 
     // --- ESTADOS ---
-    // Usamos 'username' en lugar de email, ya que tu BD usa username (ej: jorge.perez)
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -54,10 +50,13 @@ fun LorentinaLoginScreen(
 
     val context = LocalContext.current
 
+    // Ámbito de corrutina para hacer la llamada de red sin bloquear la UI
+    val scope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF0F0F0))
+            .background(Color(0xFFF5F5F1))
     ) {
         // ==========================================
         // PARTE SUPERIOR (IMAGEN + LOGO) - INTACTO
@@ -68,7 +67,8 @@ fun LorentinaLoginScreen(
                 .weight(1f)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.fondologin), // Asegúrate que la imagen exista
+                // Asegúrate que R.drawable.fondologin exista en tu proyecto
+                painter = painterResource(id = R.drawable.fondologin),
                 contentDescription = "Fondo",
                 modifier = Modifier
                     .fillMaxSize()
@@ -90,7 +90,8 @@ fun LorentinaLoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.lorentinalogo), // Asegúrate que el logo exista
+                    // Asegúrate que R.drawable.lorentinalogo exista en tu proyecto
+                    painter = painterResource(id = R.drawable.lorentinalogo),
                     contentDescription = "Logo",
                     modifier = Modifier.size(300.dp)
                 )
@@ -110,7 +111,7 @@ fun LorentinaLoginScreen(
             Card(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(topStart = 35.dp, topEnd = 35.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = LorentinaBg),
                 elevation = CardDefaults.cardElevation(defaultElevation = 25.dp)
             ) {
                 Column(
@@ -121,9 +122,6 @@ fun LorentinaLoginScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
-                    // NOTA: He eliminado el Selector de Rol Visual (Row) porque ahora
-                    // el rol se detecta automáticamente desde la Base de Datos.
-                    // Para mantener el espacio visual original, dejamos un Spacer grande.
                     Text(
                         text = "Bienvenido a Fábrica",
                         color = ColorSelector,
@@ -207,10 +205,10 @@ fun LorentinaLoginScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // --- BOTÓN INGRESAR ---
+                    // --- BOTÓN INGRESAR (CON LÓGICA ARREGLADA) ---
                     Button(
                         onClick = {
-                            // 1. Validaciones Locales
+                            // 1. Validaciones Visuales
                             usernameError = null
                             passwordError = null
 
@@ -223,54 +221,45 @@ fun LorentinaLoginScreen(
                                 return@Button
                             }
 
-                            // 2. Llamada al Backend Local (Retrofit)
+                            // 2. Inicio de Lógica de Red (Moderno con Corrutinas)
                             isLoading = true
 
-                            val loginRequest = LoginRequest(username, password)
-
-                            // Asegúrate de usar tu RetrofitClient configurado con la IP
-                            RetrofitClient.instance.login(loginRequest).enqueue(object : Callback<UserResponse> {
-                                override fun onResponse(call: Call<UserResponse>, response: Response<UserResponse>) {
-                                    isLoading = false
-                                    // Dentro de: override fun onResponse(...)
+                            scope.launch {
+                                try {
+                                    val loginRequest = LoginRequest(username, password)
+                                    // Llamada asíncrona a la API
+                                    val response = RetrofitClient.apiService.login(loginRequest)
 
                                     if (response.isSuccessful && response.body() != null) {
                                         val usuario = response.body()!!
 
-                                        // 1. Imprimimos en consola para ver qué está llegando realmente (útil para depurar)
-                                        println("LOGIN DEBUG: Usuario: ${usuario.username}, Rol recibido: ${usuario.rol}")
-
-                                        // 2. VERIFICACIÓN DE SEGURIDAD
+                                        // Validación de seguridad del Rol
                                         if (usuario.rol.isNullOrEmpty()) {
-                                            // 🛑 CASO PELIGROSO: El usuario entró, pero no tiene ROL.
-                                            // No dejamos que la app explote. Mostramos error en pantalla.
-                                            passwordError = "Error crítico: Tu usuario '${usuario.username}' no tiene un ROL asignado en la base de datos. Contacta a Cristian."
+                                            passwordError = "Tu usuario no tiene un ROL asignado."
                                         } else {
-                                            // ✅ CASO ÉXITO: Tiene rol, todo correcto.
                                             Toast.makeText(context, "Bienvenido ${usuario.nombre}", Toast.LENGTH_SHORT).show()
-
-                                            // Aquí pasamos el rol seguro, porque ya validamos que no es null
-                                            onLoginSuccess(usuario.rol)
+                                            // ¡ÉXITO! Navegamos al Home
+                                            onLoginSuccess(usuario)
                                         }
-
                                     } else {
-                                        // Error de contraseña o usuario no encontrado
-                                        passwordError = "Credenciales incorrectas"
+                                        // Error del servidor (ej. 401 Credenciales inválidas)
+                                        passwordError = "Usuario o contraseña incorrectos"
                                     }
-                                }
-
-                                override fun onFailure(call: Call<UserResponse>, t: Throwable) {
+                                } catch (e: Exception) {
+                                    // Error de red (sin internet, servidor caído)
+                                    passwordError = "Error de conexión: Verifica tu red"
+                                    e.printStackTrace()
+                                } finally {
                                     isLoading = false
-                                    Toast.makeText(context, "Error de conexión: ${t.message}", Toast.LENGTH_LONG).show()
                                 }
-                            })
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = ColorSelector),
-                        enabled = !isLoading // Deshabilitar si está cargando
+                        enabled = !isLoading // Evita doble clic mientras carga
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
@@ -290,7 +279,7 @@ fun LorentinaLoginScreen(
     }
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun PreviewLorentinaLogin() {
     LorentinaLoginScreen()

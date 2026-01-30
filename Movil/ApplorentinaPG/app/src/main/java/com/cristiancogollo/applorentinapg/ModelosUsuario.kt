@@ -11,6 +11,10 @@ data class LoginRequest(
 data class UserResponse(
     val id: Int,
     val nombre: String,
+    val apellido: String?, // Puede venir nulo
     val username: String,
-    val rol: String?
+    val rol: String?,
+    val cedula: String?,
+    val telefono: String?,
+    val activo: Boolean = true
 )
