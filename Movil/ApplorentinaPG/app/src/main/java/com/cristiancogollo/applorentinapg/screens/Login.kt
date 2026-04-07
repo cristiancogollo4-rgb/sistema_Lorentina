@@ -1,5 +1,6 @@
 package com.cristiancogollo.applorentinapg
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,7 +26,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cristiancogollo.applorentinapg.model.LoginRequest
+import com.cristiancogollo.applorentinapg.model.UserResponse
 import com.cristiancogollo.applorentinapg.network.RetrofitClient
+import com.cristiancogollo.applorentinapg.screens.LorentinaBg
+
 import kotlinx.coroutines.launch // Importante para la lógica nueva
 
 // Asegúrate de que UserResponse esté disponible
@@ -59,7 +64,7 @@ fun LorentinaLoginScreen(
             .background(Color(0xFFF5F5F1))
     ) {
         // ==========================================
-        // PARTE SUPERIOR (IMAGEN + LOGO) - INTACTO
+        // PARTE SUPERIOR (IMAGEN + LOGO)
         // ==========================================
         Box(
             modifier = Modifier
@@ -232,6 +237,7 @@ fun LorentinaLoginScreen(
 
                                     if (response.isSuccessful && response.body() != null) {
                                         val usuario = response.body()!!
+                                        Log.d("API_CHECK", "ID: ${usuario.id} | Nombre: ${usuario.nombre} | Rol: ${usuario.rol}")
 
                                         // Validación de seguridad del Rol
                                         if (usuario.rol.isNullOrEmpty()) {

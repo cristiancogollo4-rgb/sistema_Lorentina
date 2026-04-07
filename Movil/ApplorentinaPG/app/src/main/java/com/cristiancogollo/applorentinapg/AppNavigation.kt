@@ -1,5 +1,6 @@
 package com.cristiancogollo.applorentinapg
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -7,8 +8,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.cristiancogollo.applorentinapg.screens.MisTareasScreen
-import com.cristiancogollo.applorentinapg.screens.NominaScreen
-
 
 @Composable
 fun AppNavigation() {
@@ -22,45 +21,84 @@ fun AppNavigation() {
         composable("login") {
             LorentinaLoginScreen(
                 onLoginSuccess = { usuario ->
-                    navController.navigate("home/${usuario.id}/${usuario.nombre}") {
-                        popUpTo("login") { inclusive = true } // Borra historial para no volver al login con "atrás"
+                    // Forzamos el orden exacto: ID, NOMBRE, ROL
+                    val id = usuario.id
+                    val nombre = usuario.nombre
+                    val rol = usuario.rol ?: "SIN_ROL"
+
+                    Log.d("NAV_DEBUG", "Login exitoso -> Navigating with Name: $nombre, Rol: $rol")
+
+                    navController.navigate("home/$id/$nombre/$rol") {
+                        popUpTo("login") { inclusive = true }
                     }
                 }
             )
         }
 
-        // Definimos los argumentos comunes para reutilizar código
-        val userArguments = listOf(
-            navArgument("userId") { type = NavType.IntType },
-            navArgument("userName") { type = NavType.StringType }
-        )
+        // 2. HOME
+        composable(
+            route = "home/{userId}/{userName}/{userRol}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.IntType },
+                navArgument("userName") { type = NavType.StringType },
+                navArgument("userRol") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getInt("userId") ?: 0
+            val name = backStackEntry.arguments?.getString("userName") ?: ""
+            val rol = backStackEntry.arguments?.getString("userRol") ?: ""
 
-        // 2. HOME (PantallaCortador)
-        composable("home/{userId}/{userName}", arguments = userArguments) { entry ->
-            val userId = entry.arguments?.getInt("userId") ?: 0
-            val userName = entry.arguments?.getString("userName") ?: ""
-            HomeScreenUi(navController, userId, userName)
+            Log.d("NAV_DEBUG", "En HOME -> Nombre: $name, Rol: $rol")
+            Pantalla(navController, id, name, rol)
         }
 
         // 3. MIS TAREAS
-        composable("tasks/{userId}/{userName}", arguments = userArguments) { entry ->
-            val userId = entry.arguments?.getInt("userId") ?: 0
-            val userName = entry.arguments?.getString("userName") ?: ""
-            MisTareasScreen(navController, userId, userName)
+        composable(
+            route = "mis_tareas_screen/{userId}/{userName}/{userRol}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.IntType },
+                navArgument("userName") { type = NavType.StringType },
+                navArgument("userRol") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getInt("userId") ?: 0
+            val name = backStackEntry.arguments?.getString("userName") ?: ""
+            val rol = backStackEntry.arguments?.getString("userRol") ?: ""
+
+            Log.d("NAV_DEBUG", "En TAREAS -> Nombre: $name, Rol: $rol")
+            MisTareasScreen(navController, id, name, rol)
         }
 
         // 4. NÓMINA
-        composable("payroll/{userId}/{userName}", arguments = userArguments) { entry ->
-            val userId = entry.arguments?.getInt("userId") ?: 0
-            val userName = entry.arguments?.getString("userName") ?: ""
-            NominaScreen(navController, userId, userName)
+        composable(
+            route = "nomina_screen/{userId}/{userName}/{userRol}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.IntType },
+                navArgument("userName") { type = NavType.StringType },
+                navArgument("userRol") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getInt("userId") ?: 0
+            val name = backStackEntry.arguments?.getString("userName") ?: ""
+            val rol = backStackEntry.arguments?.getString("userRol") ?: ""
+
+            NominaScreen(navController, id, name, rol)
         }
 
         // 5. PERFIL
-        composable("profile/{userId}/{userName}", arguments = userArguments) { entry ->
-            val userId = entry.arguments?.getInt("userId") ?: 0
-            val userName = entry.arguments?.getString("userName") ?: ""
-            PerfilScreen(navController, userId, userName)
+        composable(
+            route = "profile/{userId}/{userName}/{userRol}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.IntType },
+                navArgument("userName") { type = NavType.StringType },
+                navArgument("userRol") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments?.getInt("userId") ?: 0
+            val name = backStackEntry.arguments?.getString("userName") ?: ""
+            val rol = backStackEntry.arguments?.getString("userRol") ?: ""
+
+            PerfilScreen(navController, id, name, rol)
         }
     }
 }

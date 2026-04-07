@@ -1,7 +1,6 @@
-package com.cristiancogollo.applorentinapg
+package com.cristiancogollo.applorentinapg.model
 
 
-// Esta es la clase que faltaba:
 data class LoginRequest(
     val username: String,
     val password: String

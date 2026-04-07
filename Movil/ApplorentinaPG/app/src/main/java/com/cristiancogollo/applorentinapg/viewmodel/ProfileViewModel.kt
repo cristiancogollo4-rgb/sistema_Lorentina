@@ -3,7 +3,7 @@ package com.cristiancogollo.applorentinapg.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.cristiancogollo.applorentinapg.UserResponse
+import com.cristiancogollo.applorentinapg.model.UserResponse
 import com.cristiancogollo.applorentinapg.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

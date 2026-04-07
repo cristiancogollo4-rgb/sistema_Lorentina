@@ -93,6 +93,20 @@ model Stock {
   @@unique([productoId, talla, localId])
 }
 
+//Tarifas por Categoría (Romana, Clasica, Zara)
+model TarifaCategoria {
+  id              Int    @id @default(autoincrement())
+  nombre          String @unique // "ROMANA", "CLASICA", "ZARA"
+  
+  // PRECIOS POR CADA PROCESO
+  precioCorte         Int @default(0)
+  precioArmado        Int @default(0)
+  precioCostura       Int @default(0)
+  precioSoladura      Int @default(0)
+  precioEmplantillado Int @default(0)
+}
+
+
 // ==========================================
 // MÓDULO DE PRODUCCIÓN (COMPLETO)
 // ==========================================
@@ -101,6 +115,14 @@ model OrdenProduccion {
   id          Int      @id @default(autoincrement())
   numeroOrden String   @unique 
   fechaInicio DateTime @default(now())
+  // --- FECHAS DE FINALIZACIÓN POR ETAPA ---
+  // Cuando estas fechas tengan valor, significa que el empleado ya cobró esa parte
+  fechaFinCorte      DateTime? 
+  fechaFinArmado     DateTime?
+  fechaFinCostura   DateTime?  
+  fechaFinSoladura   DateTime?
+  fechaFinEmplantillado   DateTime?  
+  fechaFinTerminado  DateTime? // Cuando sale de fábrica
   estado      String   @default("EN_CORTE") 
   
   // Detalle
@@ -109,6 +131,15 @@ model OrdenProduccion {
   fotoUrl     String?  
   materiales  String   
   observacion String?  
+  // (Romana, Clasica...)
+  categoria   String   @default("ROMANA") 
+  
+  // --- PRECIOS CONGELADOS PARA ESTA ORDEN ---
+  precioCorte         Int @default(0)
+  precioArmado        Int @default(0)
+  precioCostura       Int @default(0)
+  precioSoladura      Int @default(0)
+  precioEmplantillado Int @default(0)
 
   // Destino
   destino     String   // "CLIENTE" o "STOCK"

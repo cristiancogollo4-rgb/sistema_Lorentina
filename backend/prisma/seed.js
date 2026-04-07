@@ -7,35 +7,50 @@ async function main() {
   // 1. Encriptar la contraseña genérica "1234"
   const password = await bcrypt.hash('1234', 10)
 
-  console.log('🌱 Iniciando carga de empleados con datos completos...')
+  console.log('🌱 Iniciando carga de base de datos...')
 
-  // 2. Lista exacta con apellidos inventados y roles asignados
+  // 2. CREAR USUARIO ADMINISTRADOR (CRISTIAN)
+  const adminExistente = await prisma.usuario.findUnique({ where: { username: 'cristian' } })
+  if (!adminExistente) {
+    await prisma.usuario.create({
+      data: {
+        nombre: 'Cristian',
+        apellido: 'Administrador',
+        username: 'cristian',
+        password: password,
+        rol: 'ADMIN',
+        activo: true,
+        telefono: '3000000000',
+        cedula: '111111111'
+      }
+    })
+    console.log('👑 Usuario ADMIN "cristian" creado con éxito.')
+  }
+
+  // 3. LISTA DE EMPLEADOS CON ROLES ESTANDARIZADOS (Coinciden con index.ts)
   const empleados = [
     // --- CORTE ---
     { nombre: 'Jorge', apellido: 'Pérez', username: 'jorge.perez', rol: 'CORTE' },
     { nombre: 'Jhon', apellido: 'Gómez', username: 'jhon.gomez', rol: 'CORTE' },
 
-    // --- ARMADO ---
-    { nombre: 'Jackeline', apellido: 'Rojas', username: 'jackeline.rojas', rol: 'ARMADO' },
-    { nombre: 'Sandra', apellido: 'Milena', username: 'sandra.milena', rol: 'ARMADO' },
-    { nombre: 'Ana', apellido: 'Castellano', username: 'ana.castellano', rol: 'ARMADO' },
-    { nombre: 'Yuleidy', apellido: 'Méndez', username: 'yuleidy.mendez', rol: 'ARMADO' },
-    { nombre: 'Diana', apellido: 'Vargas', username: 'diana.vargas', rol: 'ARMADO' },
-    { nombre: 'Sandra', apellido: 'Olarte', username: 'sandra.olarte', rol: 'ARMADO' },
+    // --- ARMADORES (Cambiado de ARMADO a ARMADOR) ---
+    { nombre: 'Jackeline', apellido: 'Rojas', username: 'jackeline.rojas', rol: 'ARMADOR' },
+    { nombre: 'Sandra', apellido: 'Milena', username: 'sandra.milena', rol: 'ARMADOR' },
+    { nombre: 'Ana', apellido: 'Castellano', username: 'ana.castellano', rol: 'ARMADOR' },
 
-    // --- COSTURA ---
-    { nombre: 'Yolanda', apellido: 'Díaz', username: 'yolanda.diaz', rol: 'COSTURA' },
-    { nombre: 'Andrea', apellido: 'Ruiz', username: 'andrea.ruiz', rol: 'COSTURA' },
-    { nombre: 'Viviana', apellido: 'Castro', username: 'viviana.castro', rol: 'COSTURA' },
+    // --- COSTUREROS (Cambiado de COSTURA a COSTURERO) ---
+    { nombre: 'Yolanda', apellido: 'Díaz', username: 'yolanda.diaz', rol: 'COSTURERO' },
+    { nombre: 'Andrea', apellido: 'Ruiz', username: 'andrea.ruiz', rol: 'COSTURERO' },
 
-    // --- SOLADURA ---
-    { nombre: 'Julian', apellido: 'Martínez', username: 'julian.martinez', rol: 'SOLADURA' },
-    { nombre: 'Cesar', apellido: 'Romero', username: 'cesar.romero', rol: 'SOLADURA' },
-    { nombre: 'Rodolfo', apellido: 'Vega', username: 'rodolfo.vega', rol: 'SOLADURA' },
+    // --- SOLADORES (Cambiado de SOLADURA a SOLADOR) ---
+    { nombre: 'Julian', apellido: 'Martínez', username: 'julian.martinez', rol: 'SOLADOR' },
+    { nombre: 'Cesar', apellido: 'Romero', username: 'cesar.romero', rol: 'SOLADOR' },
+
+    // --- EMPLANTILLADORES ---
+    { nombre: 'Ricardo', apellido: 'Sosa', username: 'ricardo.sosa', rol: 'EMPLANTILLADOR' }
   ]
 
   for (const emp of empleados) {
-    // Verificamos si ya existe para no duplicar error
     const existe = await prisma.usuario.findUnique({ where: { username: emp.username } })
     
     if (!existe) {
@@ -47,11 +62,11 @@ async function main() {
           password: password,
           rol: emp.rol,
           activo: true,
-          telefono: '3000000000', // Teléfono genérico
-          cedula: '123456789'     // Cédula genérica
+          telefono: '3000000000',
+          cedula: '123456789'
         }
       })
-      console.log(`✅ Creado: ${emp.nombre} ${emp.apellido} (${emp.rol})`)
+      console.log(`✅ Empleado creado: ${emp.nombre} (${emp.rol})`)
     } else {
       console.log(`⚠️ Omitido (Ya existe): ${emp.username}`)
     }

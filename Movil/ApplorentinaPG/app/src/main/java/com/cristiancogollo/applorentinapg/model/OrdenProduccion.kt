@@ -1,6 +1,5 @@
-package com.cristiancogollo.applorentinapg
+package com.cristiancogollo.applorentinapg.model
 
-import com.google.gson.annotations.SerializedName
 import java.io.Serializable
 
 data class OrdenProduccion(
@@ -14,6 +13,17 @@ data class OrdenProduccion(
     // --- DETALLE ---
     val referencia: String,
     val color: String,
+    val categoria: String,
+
+    // --- PRECIOS ESPECÍFICOS (AGREGAR ESTOS) ---
+    val precioCorte: Double = 0.0,
+    val precioArmado: Double = 0.0,
+    val precioCostura: Double = 0.0,
+    val precioSoladura: Double = 0.0,
+    val precioEmplantillado: Double = 0.0,
+
+
+    val precioPactado: Double,
     val fotoUrl: String?, // Puede ser nulo (?)
     val materiales: String,
     val observacion: String?, // Puede ser nulo (?)

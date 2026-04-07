@@ -18,10 +18,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.cristiancogollo.applorentinapg.model.UserResponse
+import com.cristiancogollo.applorentinapg.screens.BottomNavigationBar
+import com.cristiancogollo.applorentinapg.screens.LorentinaBg
+import com.cristiancogollo.applorentinapg.screens.LorentinaBrown
+import com.cristiancogollo.applorentinapg.screens.LorentinaGreen
+import com.cristiancogollo.applorentinapg.screens.LorentinaTextPrimary
+import com.cristiancogollo.applorentinapg.screens.LorentinaTextSecondary
 import com.cristiancogollo.applorentinapg.viewmodel.ProfileUiState
 import com.cristiancogollo.applorentinapg.viewmodel.ProfileViewModel
 
@@ -31,6 +37,7 @@ fun PerfilScreen(
     navController: NavController,
     userId: Int,
     userName: String,
+    userRol: String,
     viewModel: ProfileViewModel = viewModel()
 ) {
     // 1. Cargar datos al entrar
@@ -41,9 +48,9 @@ fun PerfilScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        containerColor = LorentinaBeigeBg, // Asegúrate de tener este color definido en algún lado o usa Color(0xFFF5F5F1)
+        containerColor = LorentinaBg, // Asegúrate de tener este color definido en algún lado o usa Color(0xFFF5F5F1)
         topBar = { ProfileTopBar(navController) },
-        bottomBar = { LorentinaBottomNavBar(navController, userId, userName) }
+        bottomBar = { BottomNavigationBar(navController, userId, userName, userRol) }
     ) { paddingValues ->
 
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
@@ -146,7 +153,7 @@ private fun ProfileTopBar(navController: NavController) {
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = LorentinaBeigeBg // Color(0xFFF5F5F1)
+            containerColor = LorentinaBg // Color(0xFFF5F5F1)
         )
     )
 }
@@ -306,5 +313,3 @@ private fun AccessItem(icon: ImageVector, text: String) {
     }
 }
 
-// Variables de color locales (si no las tienes en un archivo de tema)
-private val LorentinaBeigeBg = Color(0xFFF5F5F1)

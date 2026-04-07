@@ -20,7 +20,8 @@ function Empleados() {
   });
 
   const ROLES_ADMIN = ['ADMIN', 'VENDEDOR'];
-  const ROLES_FABRICA = ['CORTE', 'ARMADO', 'COSTURA', 'SOLADURA', 'EMPLANTILLADO', 'BODEGUERO'];
+  // Busca esta línea en Empleados.js y cámbiala:
+const ROLES_FABRICA = ['CORTE', 'ARMADOR', 'COSTURERO', 'SOLADOR', 'EMPLANTILLADOR', 'BODEGUERO'];
 
   useEffect(() => {
     cargarUsuarios();
