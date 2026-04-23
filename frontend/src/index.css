@@ -1,38 +1,84 @@
-/* VARIABLES DE COLOR */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&family=Work+Sans:wght@300;400;500;600&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+
+/* VARIABLES DE COLOR ORIGINALES DE LORENTINA */
 :root {
-  --color-primario: #e5d3c3; /* Beige */
-  --color-secundario: #5D4037;
-  --color-fondo-caja: #582e2e; /* Marrón Caja */
+  --color-primario: #5D4037; /* Café Principal */
+  --color-secundario: #e5d3c3; /* Beige */
+  --color-fondo-caja: #582e2e; /* Marrón/Vino */
   --color-texto: #e5d3c3;
-  --color-fondo-brand: #582e2e;
-  --color-texto-brand: #e5d3c3;
+  --color-gold: #C5A059;
+  --color-gold-light: #E0C080;
+  --gradient-premium: linear-gradient(135deg, #582e2e 0%, #2c1717 100%);
+  --gradient-gold: linear-gradient(135deg, #5D4037 0%, #C5A059 100%);
 }
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #000; 
+  font-family: 'Work Sans', sans-serif;
+  background-color: #f5f5f5; 
   height: 100vh;
-  width: 100vw;
-  overflow: hidden; /* Evita scrolls dobles */
+  width: 100%;
+  overflow: hidden;
 }
+
 
 /* =========================================
-   ESTILOS DEL LOGIN 
+   NUEVO LOGIN: COLLAGE & CHOCOLATE CARD
    ========================================= */
 
-/* --- CARRUSEL CINEMATOGRÁFICO --- */
-.background-carousel {
-  position: fixed;
-  top: 0;
-  left: 0;
+.login-page {
+  position: relative;
   width: 100vw;
   height: 100vh;
-  z-index: 0;
-  background-color: #000; /* Fondo negro base para evitar parpadeos */
+  display: flex;
+  overflow: hidden;
+  background-color: #000;
 }
 
-.bg-image {
+.collage-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); 
+  grid-template-rows: repeat(4, 1fr);    
+  gap: 0;
+  padding: 0;
+  filter: brightness(0.65) contrast(1.1);
+  z-index: 1;
+  background-color: #000;
+}
+
+.collage-background::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  opacity: 0.35;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.collage-cell-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  background-color: #2b1b17;
+}
+
+.collage-layer {
   position: absolute;
   top: 0;
   left: 0;
@@ -40,299 +86,514 @@ body {
   height: 100%;
   background-size: cover;
   background-position: center;
-  z-index: 1;
-  
+  transition: opacity 3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
   opacity: 0;
-  transform: scale(1); /* Empieza tamaño normal */
-  transition: opacity 1.5s ease-in-out, transform 10s ease-out; /* Transición LENTA */
 }
 
-.bg-image.active {
-  opacity: 1;
-  transform: scale(1.15); /* Zoom lento hacia el 115% */
+.show-a .layer-a { opacity: 0.6; z-index: 2; }
+.show-a .layer-b { opacity: 0; z-index: 1; }
+.show-b .layer-b { opacity: 0.6; z-index: 2; }
+.show-b .layer-a { opacity: 0; z-index: 1; }
+
+.collage-layer:hover {
+  opacity: 1 !important;
+  transform: scale(1.05);
+  z-index: 10;
 }
 
-/* --- DEGRADADO --- */
-.bg-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
+.login-content-overlay {
+  position: relative;
+  z-index: 10;
+  display: flex;
   width: 100%;
   height: 100%;
-  z-index: 2;
-  /* Degradado más elegante: */
-  /* Oscuro abajo a la derecha, Vino arriba a la izquierda */
-  background: linear-gradient(
-      135deg, 
-      rgba(88, 46, 46, 0.5) 0%,   /* Vino transparente arriba */
-      rgba(0, 0, 0, 0.6) 50%,     /* Transición a negro */
-      rgba(0, 0, 0, 0.95) 100%    /* Negro casi sólido abajo */
-  );
-  pointer-events: none;
-  backdrop-filter: blur(2px); /* Un toque borroso sutil al fondo para resaltar el login */
 }
 
-.login-wrapper {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
+.login-legend-side {
+  flex: 1.2;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10; /* Contenido encima del fondo */
+  padding: 60px;
 }
 
-.login-box {
-  width: 340px;
-  background-color: var(--color-fondo-caja);
-  padding: 30px;
-  border-radius: 20px;
-  text-align: center;
-  position: relative;
-  box-sizing: border-box;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.6); 
-  z-index: 100;
+.legend-container {
+  max-width: 600px;
 }
 
-.logo-container {
-  width: 100%;
+.legend-text {
+  color: var(--color-secundario);
+  font-size: 3.8rem;
+  font-weight: 800;
+  font-family: 'Manrope', sans-serif;
+  text-transform: uppercase;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  text-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  min-height: 160px;
+}
+
+.slide-up-text {
+  animation: slideUpFade 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(30px); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.login-form-side {
+  flex: 1;
   display: flex;
   justify-content: center;
+  align-items: center;
+  padding: 40px;
 }
 
-.logo-img {
-  /* 1. Aumentamos el tamaño máximo para que se vea más el dibujo */
-  max-width: 280px; 
+.login-box.chocolate-card {
+  width: 280px;
+  background-color: rgba(88, 46, 46, 0.85);
+  backdrop-filter: blur(15px);
+  padding: 20px 15px;
+  border-radius: 12px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(229, 211, 195, 0.15);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card-logo {
+  width: 100%;
+  max-width: 230px;
   height: auto;
-  object-fit: contain;
-  
-  /* 2. Truco visual: Margen negativo abajo */
-  /* Esto hace que el título 'Bienvenido' ignore el espacio vacío de la foto y suba */
-  margin-bottom: -80px; 
-  
-  /* 3. Opcional: Una sombra suave al logo para que destaque */
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+  margin-bottom: 8px;
+  filter: drop-shadow(0 10px 15px rgba(0,0,0,0.4));
 }
 
-h1 {
-  color: var(--color-primario);
-  margin-bottom: 5px;
-  font-size: 1.8rem;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+.login-box h1 {
+  color: #FFFFFF;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0px;
+  letter-spacing: -0.01em;
 }
 
-.subtitle {
-  color: #ccc;
-  margin-bottom: 30px;
-  font-size: 0.9rem;
+.login-box .subtitle {
+  color: rgba(229, 211, 195, 0.4);
+  font-size: 0.7rem;
+  margin-bottom: 12px;
 }
 
-.input-group {
-  text-align: left;
-  margin-bottom: 15px;
+.chocolate-card input {
+  padding: 12px 14px !important;
+  font-size: 0.9rem !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #FFFFFF !important;
 }
 
-.input-group label {
-  display: block;
-  font-size: 0.85rem;
-  color: #d7ccc8;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-
-/* --- FIX IMPORTANTE: SCOPED INPUTS --- */
-/* Solo los inputs DENTRO del login serán oscuros con letra blanca */
-.login-box input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #8d6e63;
-  background-color: rgba(255,255,255,0.1);
-  color: white; /* AQUÍ ESTABA EL PROBLEMA DEL DASHBOARD */
-  border-radius: 8px;
-  box-sizing: border-box;
-  font-size: 1rem;
-  transition: border 0.3s;
-}
-
-.login-box input:focus {
-  border-color: var(--color-primario);
-  outline: none;
-  background-color: rgba(255,255,255,0.2);
-}
-
-.btn-login {
-  width: 100%;
-  padding: 14px;
-  background-color: var(--color-primario);
-  color: #5d4037;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 10px;
-  transition: background 0.3s;
-}
-
-.btn-login:hover {
-  background-color: #fff;
-}
-
-.error-msg {
-  background-color: rgba(255, 0, 0, 0.1);
-  border: 1px solid red;
-  color: #ffcdd2;
-  padding: 10px;
-  border-radius: 5px;
-  font-size: 0.9rem;
-  margin-bottom: 15px;
+.chocolate-card .btn-login {
+  background: var(--gradient-gold) !important;
+  color: #2c1717 !important;
+  padding: 12px !important;
+  font-size: 0.9rem !important;
+  margin-top: 15px;
+  font-weight: 800 !important;
 }
 
 /* =========================================
-   ESTILOS DEL DASHBOARD (MODERNO)
+   DASHBOARD UI
    ========================================= */
 
 .dashboard-container {
   display: flex;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
-  background-color: #f3f4f6;
+  background-color: #F1F5F9;
   overflow: hidden;
-}
-
-.sidebar {
-  width: 260px; 
-  min-width: 260px;
-  height: 100vh;
-  background-color: var(--color-fondo-caja);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  box-sizing: border-box;
-  position: relative; 
-  z-index: 100;
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.sidebar-logo {
-  width: 180px; 
-  height: auto;
-  object-fit: contain;
-}
-
-.menu-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-  z-index: 10; 
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 12px 15px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  color: rgba(229, 211, 195, 0.7);
-  background-color: rgba(0, 0, 0, 0.2); 
-  border: 1px solid rgba(255,255,255,0.05);
-}
-
-.menu-item:hover {
-  background-color: rgba(255,255,255, 0.1);
-  color: white;
-  transform: translateX(5px);
-}
-
-.menu-item.active {
-  background-color: var(--color-texto-brand);
-  color: var(--color-fondo-brand);
-  font-weight: bold;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  border: none;
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  background-color: #F1F5F9;
+  min-width: 0; /* Previene que el contenido empuje el ancho del flex item */
+}
+
+
+.content-area {
+  flex: 1;
   overflow-y: auto;
-  padding: 30px;
+  padding: 20px;
+  width: 100%;
+}
+
+/* CUSTOM SCROLLBAR FOR WEB */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primario);
+  border-radius: 5px;
+  border: 2px solid #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3e2b25;
+}
+
+
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background-color: var(--color-fondo-caja);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+  z-index: 100;
+}
+
+.sidebar-logo { width: 170px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 28px;
+  cursor: pointer;
+  font-weight: 500;
+  color: rgba(229, 211, 195, 0.6);
+  transition: all 0.25s ease;
+}
+
+.menu-item.active {
+  background-color: rgba(255,255,255, 0.08);
+  color: #FFFFFF;
+  border-left: 4px solid var(--color-gold);
 }
 
 .top-header {
+  height: 80px;
+  background: #FFFFFF;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  padding: 0 40px;
+  border-bottom: 1px solid #E5E7EB;
 }
 
-.search-bar {
+.search-container { position: relative; display: flex; align-items: center; width: 100%; max-width: 400px; }
+.search-icon-inside { position: absolute; left: 15px; color: #888; pointer-events: none; }
+.search-input-premium { width: 100%; padding: 10px 15px 10px 45px; background: #F3F4F6; border-radius: 30px; border: 1px solid #E5E7EB; outline: none; transition: 0.3s; }
+.search-input-premium:focus { background: #FFF; border-color: var(--color-primario); }
+
+/* TABLAS MODERNAS */
+.modern-table { width: 100%; border-collapse: collapse; }
+.modern-table th { text-align: left; color: #94A3B8; font-size: 0.85rem; padding: 15px; border-bottom: 1px solid #E2E8F0; }
+.modern-table td { padding: 15px; border-bottom: 1px solid #F1F5F9; color: #1E293B; }
+
+/* REDISEÑO SECCIÓN FABRICAR (MODULAR) */
+.fab-container { padding: 20px; width: 100%; margin: 0; }
+
+.fab-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+
+.fab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+
+.fab-card {
   background: white;
-  padding: 10px 20px;
-  border-radius: 30px;
-  width: 400px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-  display: flex;
-  align-items: center;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  border: 1px solid #edf2f7;
 }
 
-.search-input {
-  border: none;
-  background: transparent;
+.fab-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-primario);
+  font-weight: 800;
+  margin-bottom: 20px;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.lorentina-input-group { margin-bottom: 20px; }
+.lorentina-input-group label { display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; margin-bottom: 8px; }
+
+.lorentina-input {
   width: 100%;
-  color: #333; /* Texto negro en el Dashboard */
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.lorentina-input:focus {
   outline: none;
+  border-color: var(--color-primario);
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(88, 46, 46, 0.08);
 }
 
-.user-profile {
+.talla-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 12px;
+  background: #f8fafc;
+  padding: 15px;
+  border-radius: 12px;
+}
+
+.talla-input-wrapper { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.talla-input-wrapper span { font-size: 0.7rem; font-weight: 800; color: #94a3b8; }
+
+.input-talla-premium {
+  width: 100%;
+  padding: 10px 0;
+  text-align: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.input-talla-premium:focus { border-color: #22c55e; background: #f0fdf4; outline: none; }
+
+.btn-fab-submit {
+  width: 100%;
+  padding: 18px;
+  background: var(--color-primario);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-top: 20px;
+  box-shadow: 0 4px 15px rgba(88, 46, 46, 0.2);
+}
+
+.special-price-notice {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  padding: 15px;
+  border-radius: 10px;
+  margin-top: 15px;
+  font-size: 0.85rem;
+}
+
+/* =========================================
+   EMPLEADOS UI (CRM Premium)
+   ========================================= */
+
+.employee-header {
   display: flex;
-  align-items: center;
-  gap: 15px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 25px;
 }
 
-.avatar-circle {
+.employee-title-group h2 {
+  color: var(--color-primario);
+  font-weight: 800;
+  font-size: 1.8rem;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.employee-title-group p {
+  color: #64748b;
+  margin: 5px 0 0 0;
+  font-size: 0.95rem;
+}
+
+.btn-gold {
+  background: var(--gradient-gold);
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(197, 160, 89, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(197, 160, 89, 0.4);
+}
+
+.employee-table-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  border: 1px solid #edf2f7;
+  overflow: hidden;
+}
+
+.employee-avatar {
   width: 45px;
   height: 45px;
-  background-color: var(--color-fondo-brand);
-  color: var(--color-texto-brand);
   border-radius: 50%;
+  background: var(--color-secundario);
+  color: var(--color-primario);
   display: flex;
   justify-content: center;
   align-items: center;
-  font-weight: bold;
-  font-size: 1.2rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-right: 15px;
+  text-transform: uppercase;
 }
 
-/* Tabla y tarjetas generales */
-.modern-table {
-  width: 100%;
-  border-collapse: collapse;
+.employee-name-cell {
+  display: flex;
+  align-items: center;
 }
 
-.modern-table th {
-  text-align: left;
-  color: #999;
-  font-weight: normal;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
+.employee-name-cell .name {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 1.05rem;
+  margin-bottom: 2px;
 }
 
-.modern-table td {
-  padding: 15px 0;
-  border-bottom: 1px solid #f9f9f9;
-  color: #444;
+.employee-name-cell .sub {
+  font-size: 0.8rem;
+  color: #94a3b8;
 }
+
+.status-badge {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.action-btn {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  width: 35px;
+  height: 35px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #e2e8f0;
+}
+
+.action-btn.delete {
+  color: #ef4444;
+}
+
+.action-btn.delete:hover {
+  background: #fee2e2;
+}
+
+/* Modal Redesign */
+.premium-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.premium-modal-content {
+  background: white;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 750px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+  padding: 25px 30px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-primario);
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+
+.modal-body {
+  padding: 30px;
+}
+
+.modal-footer {
+  padding: 20px 30px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  border-radius: 0 0 20px 20px;
+}
+
+.btn-cancel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover { background: #f1f5f9; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

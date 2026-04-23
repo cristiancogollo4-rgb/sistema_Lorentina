@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from './api';
 
 function Stock() {
   const [inventario, setInventario] = useState([]);
@@ -8,7 +8,7 @@ function Stock() {
   // Estados de interfaz
   const [sucursalVisual, setSucursalVisual] = useState('CABECERA');
   const [filtroTipo, setFiltroTipo] = useState('TODOS'); 
-  const [busqueda, setBusqueda] = useState(''); // <--- EL ESTADO DEL BUSCADOR
+  const [busqueda, setBusqueda] = useState('');
   const [mostrarCarga, setMostrarCarga] = useState(false);
 
   // Estados de archivo
@@ -21,11 +21,10 @@ function Stock() {
     cargarInventario();
   }, [sucursalVisual]);
 
-  // 2. Lógica de Filtrado (Mejorada)
+  // 2. Lógica de Filtrado
   useEffect(() => {
     let resultado = inventario;
 
-    // Filtro Tipo
     if (filtroTipo !== 'TODOS') {
         resultado = resultado.filter(item => {
             const tipoItem = item.tipo ? item.tipo.toUpperCase() : '';
@@ -33,7 +32,6 @@ function Stock() {
         });
     }
 
-    // Filtro Buscador
     if (busqueda) {
         const term = busqueda.toLowerCase().trim();
         resultado = resultado.filter(item => {
@@ -47,7 +45,7 @@ function Stock() {
 
   const cargarInventario = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:4000/api/stock/zapatos?sucursal=${sucursalVisual}`);
+      const res = await api.get(`/stock/zapatos?sucursal=${sucursalVisual}`);
       setInventario(res.data);
     } catch (error) {
       console.error("Error cargando data:", error);
@@ -65,7 +63,7 @@ function Stock() {
     setMensaje("Iniciando carga...");
 
     try {
-      const response = await axios.post('http://127.0.0.1:4000/api/stock/masivo', formData);
+      const response = await api.post('/stock/masivo', formData);
       setMensaje(`✅ ¡Éxito! ${response.data.detalles}`);
       alert("¡Inventario actualizado correctamente! 🎉");
       cargarInventario(); 
@@ -82,7 +80,7 @@ function Stock() {
   const totalParesVisibles = inventarioFiltrado.reduce((acc, item) => acc + item.total, 0);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       
       {/* HEADER */}
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
@@ -132,39 +130,20 @@ function Stock() {
             ))}
         </div>
 
-        {/* BUSCADOR CORREGIDO */}
-        <div style={{position: 'relative', flex: 1, maxWidth: '300px'}}>
-            {/* Lupa con pointerEvents: none para que no bloquee el click */}
-            <span style={{
-                position:'absolute', left:'12px', top:'50%', transform: 'translateY(-50%)', 
-                color: '#888', pointerEvents: 'none', fontSize: '1.1rem'
-            }}>🔍</span>
-            
+        {/* BUSCADOR ESTANDARIZADO */}
+        <div className="search-container" style={{ flex: 1, maxWidth: '350px' }}>
+            <span className="search-icon-inside">🔍</span>
             <input 
                 type="text" 
-                placeholder="Buscar referencia..." 
+                placeholder="Buscar referencia o color..." 
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                style={{
-                    ...styles.input, 
-                    paddingLeft: '40px', // Espacio para la lupa
-                    paddingRight: '30px', 
-                    width: '100%',
-                    height: '40px', // Altura fija para evitar problemas
-                    border: '1px solid #aaa',
-                    color: '#000',          // Fuerza texto negro
-                    backgroundColor: '#fff'
-                }}
+                className="search-input-premium"
             />
-
             {busqueda && (
                 <button 
                     onClick={() => setBusqueda('')}
-                    style={{
-                        position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                        background: 'transparent', border: 'none', 
-                        fontSize: '1.2rem', color: '#999', cursor: 'pointer'
-                    }}
+                    className="clear-search-btn"
                 >
                     &times;
                 </button>

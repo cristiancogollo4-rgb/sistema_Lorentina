@@ -33,7 +33,7 @@ function Dashboard() {
       <aside className="sidebar">
         <div className="sidebar-header">
           {/* Logo centrado y sin texto */}
-          <img src="/public/logolorentina.png" alt="Logo" className="sidebar-logo" />
+          <img src="/LOGOLORENTINA.png" alt="Logo" className="sidebar-logo" />
         </div>
 
         <ul className="menu-list">
@@ -92,9 +92,9 @@ function Dashboard() {
         
         {/* HEADER SUPERIOR */}
         <header className="top-header">
-          <div className="search-bar">
-            <span>🔍</span>
-            <input type="text" placeholder="Buscar..." className="search-input" style={{marginLeft: '10px'}}/>
+          <div className="search-container">
+            <span className="search-icon-inside">🔍</span>
+            <input type="text" placeholder="Buscar en el sistema..." className="search-input-premium" />
           </div>
 
           <div className="user-profile">
@@ -111,7 +111,7 @@ function Dashboard() {
         {/* AQUÍ MUESTRAS EL CONTENIDO SEGÚN LA PESTAÑA SELECCIONADA 
            (Por ahora dejé un mensaje simple para probar que los botones funcionan)
         */}
-        <div>
+        <div className="content-area">
            {activeTab === 'dashboard' && <h2>Vista General del Dashboard</h2>}
            {activeTab === 'empleados' && <Empleados />}
            {activeTab === 'stock' && <Stock />}
@@ -119,6 +119,7 @@ function Dashboard() {
            {activeTab === 'fabricar' && <Produccion />}
            {activeTab === 'ventas' && <h2>Registro de Ventas</h2>}
         </div>
+
 
       </main>
     </div>

@@ -16,6 +16,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val properties = java.util.Properties()
+        properties.load(project.rootProject.file("local.properties").inputStream())
+        val baseUrl = properties.getProperty("API_BASE_URL") ?: "\"http://10.0.2.2:8000/\""
+        buildConfigField("String", "BASE_URL", baseUrl)
     }
 
     buildTypes {
@@ -36,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

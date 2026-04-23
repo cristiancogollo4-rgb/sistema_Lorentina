@@ -39,8 +39,8 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    // ⚠️ CAMBIA ESTO POR TU IP SI USAS CELULAR REAL
-    private const val BASE_URL = "http://10.0.2.2:4000/"
+    // ⚠️ La URL ahora se lee dinámicamente desde local.properties usando BuildConfig
+    private val BASE_URL = com.cristiancogollo.applorentinapg.BuildConfig.BASE_URL
 
     // Unificamos el nombre a 'apiService' para que coincida con el Repositorio
     val apiService: ApiService by lazy {
