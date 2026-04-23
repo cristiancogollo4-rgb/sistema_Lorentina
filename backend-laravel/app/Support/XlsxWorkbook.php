@@ -20,6 +20,11 @@ class XlsxWorkbook
     public function __construct(string $path)
     {
         $this->path = $path;
+
+        if (! class_exists(ZipArchive::class)) {
+            throw new RuntimeException('La extensión ZIP de PHP no está habilitada. Activa ZipArchive para importar archivos Excel.');
+        }
+
         $this->zip = new ZipArchive();
 
         if ($this->zip->open($this->path) !== true) {
@@ -48,6 +53,14 @@ class XlsxWorkbook
      */
     public function getSheetRows(string $sheetName): array
     {
+        return array_values($this->getSheetRowsIndexed($sheetName));
+    }
+
+    /**
+     * @return array<int, array<int, mixed>>
+     */
+    public function getSheetRowsIndexed(string $sheetName): array
+    {
         if (! isset($this->sheetPaths[$sheetName])) {
             return [];
         }
@@ -62,6 +75,7 @@ class XlsxWorkbook
 
         foreach ($xml->sheetData->row as $row) {
             $currentRow = [];
+            $rowNumber = (int) ($row['r'] ?? 0);
 
             foreach ($row->c as $cell) {
                 $reference = (string) ($cell['r'] ?? '');
@@ -71,11 +85,64 @@ class XlsxWorkbook
 
             if ($currentRow !== []) {
                 ksort($currentRow);
-                $rows[] = $currentRow;
+                $rows[$rowNumber > 0 ? $rowNumber : count($rows) + 1] = $currentRow;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @return array<int, array{start_row:int, end_row:int, total:int}>
+     */
+    public function getSheetSumRanges(string $sheetName, string $column = 'B'): array
+    {
+        if (! isset($this->sheetPaths[$sheetName])) {
+            return [];
+        }
+
+        $xml = $this->readXml($this->sheetPaths[$sheetName]);
+
+        if (! isset($xml->sheetData->row)) {
+            return [];
+        }
+
+        $normalizedColumn = strtoupper($column);
+        $ranges = [];
+
+        foreach ($xml->sheetData->row as $row) {
+            foreach ($row->c as $cell) {
+                $reference = strtoupper((string) ($cell['r'] ?? ''));
+
+                if (! str_starts_with($reference, $normalizedColumn)) {
+                    continue;
+                }
+
+                if (! isset($cell->f, $cell->v)) {
+                    continue;
+                }
+
+                $formula = strtoupper((string) $cell->f);
+
+                if (
+                    preg_match(
+                        '/SUM\(' . preg_quote($normalizedColumn, '/') . '(\d+):' . preg_quote($normalizedColumn, '/') . '(\d+)\)/',
+                        $formula,
+                        $matches
+                    ) !== 1
+                ) {
+                    continue;
+                }
+
+                $ranges[] = [
+                    'start_row' => (int) $matches[1],
+                    'end_row' => (int) $matches[2],
+                    'total' => is_numeric((string) $cell->v) ? (int) $cell->v : 0,
+                ];
+            }
+        }
+
+        return $ranges;
     }
 
     private function readXml(string $innerPath): SimpleXMLElement

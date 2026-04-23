@@ -265,23 +265,57 @@ body {
   z-index: 100;
 }
 
-.sidebar-logo { width: 170px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+.sidebar-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 20px;
+  width: 100%;
+}
+
+.sidebar-logo { 
+  width: 170px; 
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); 
+  display: block;
+  margin: 0 auto;
+}
+
+.menu-list {
+  padding: 0;
+  margin: 10px 0 0 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
 .menu-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 28px;
+  padding: 14px 20px;
+  margin: 0 16px;
+  border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
-  color: rgba(229, 211, 195, 0.6);
-  transition: all 0.25s ease;
+  color: rgba(229, 211, 195, 0.7);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  transform: translateX(4px);
 }
 
 .menu-item.active {
-  background-color: rgba(255,255,255, 0.08);
-  color: #FFFFFF;
-  border-left: 4px solid var(--color-gold);
+  background: var(--gradient-gold);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(197, 160, 89, 0.3);
+  transform: scale(1.02);
 }
 
 .top-header {
@@ -596,4 +630,22 @@ body {
 .btn-cancel:hover { background: #f1f5f9; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }/* --- COMPONENTES NUEVOS DEL DASHBOARD --- */
+.quick-action-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quick-action-card:hover {
+  background: #ffffff;
+  border-color: var(--color-gold);
+  box-shadow: 0 4px 10px rgba(197, 160, 89, 0.15);
+  transform: translateX(5px);
+}

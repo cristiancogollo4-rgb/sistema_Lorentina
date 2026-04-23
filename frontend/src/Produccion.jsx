@@ -20,7 +20,7 @@ function Produccion() {
 
   useEffect(() => {
     api.get('/usuarios').then(res => setEmpleados(res.data)).catch(err => console.error(err));
-    api.get('/produccion/tarifas').then(res => setTarifas(res.data)).catch(err => console.error(err));
+    api.get('/tarifas').then(res => setTarifas(res.data)).catch(err => console.error(err));
   }, []);
 
   const handleTallaChange = (talla, valor) => {
@@ -36,12 +36,15 @@ function Produccion() {
       referencia, color, categoria, destino, materiales, 
       cortadorId: cortadorId || null,
       ...tallas,
-      precioVentaEspecial: categoria === 'ESPECIAL' ? precioVentaEspecial : null,
-      precioFabricaEspecial: categoria === 'ESPECIAL' ? precioFabricaEspecial : null
+      precioManualCorte: categoria === 'ESPECIAL' ? precioVentaEspecial : null,
+      precioManualArmado: categoria === 'ESPECIAL' ? precioFabricaEspecial : null,
+      precioManualCostura: categoria === 'ESPECIAL' ? precioFabricaEspecial : null,
+      precioManualSoladura: categoria === 'ESPECIAL' ? precioFabricaEspecial : null,
+      precioManualEmplantillado: categoria === 'ESPECIAL' ? precioFabricaEspecial : null
     };
 
     try {
-      await api.post('/produccion/ordenes', payload);
+      await api.post('/produccion', payload);
       alert("✅ Orden de fabricación creada con éxito.");
       // Reset
       setReferencia(''); setColor(''); setTallas({ t35: 0, t36: 0, t37: 0, t38: 0, t39: 0, t40: 0, t41: 0, t42: 0 });
@@ -107,7 +110,7 @@ function Produccion() {
               >
                 <option value="">-- Seleccionar --</option>
                 {tarifas.map(t => (
-                  <option key={t.id} value={t.nombre}>{t.nombre} (${t.precio_venta})</option>
+                  <option key={t.id} value={t.nombre}>{t.nombre} (${t.precioCorte})</option>
                 ))}
                 <option value="ESPECIAL">💎 PEDIDO ESPECIAL (Manual)</option>
               </select>
@@ -215,8 +218,8 @@ function Produccion() {
                 {tarifas.map(t => (
                   <tr key={t.id}>
                     <td style={{fontWeight:'bold'}}>{t.nombre}</td>
-                    <td style={{ textAlign: 'right', color: '#22c55e', fontWeight: 'bold' }}>${t.precio_venta}</td>
-                    <td style={{ textAlign: 'right', color: '#64748b' }}>${t.precio_fabrica}</td>
+                    <td style={{ textAlign: 'right', color: '#22c55e', fontWeight: 'bold' }}>${t.precioCorte}</td>
+                    <td style={{ textAlign: 'right', color: '#64748b' }}>${t.precioArmado}</td>
                   </tr>
                 ))}
               </tbody>

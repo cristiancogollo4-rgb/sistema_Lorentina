@@ -5,6 +5,8 @@ use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\TarifaController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ClienteController;
+use App\Http\Controllers\VentaController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -24,3 +26,14 @@ Route::get('/nomina/{empleadoId}', [ProductionController::class, 'nomina']);
 Route::get('/produccion/tablero', [ProductionController::class, 'tablero']);
 Route::post('/produccion/asignar', [ProductionController::class, 'asignar']);
 Route::post('/produccion/terminar-tarea', [ProductionController::class, 'terminarTarea']);
+
+// Clientes
+Route::get('/clientes', [ClienteController::class, 'index']);
+Route::post('/clientes', [ClienteController::class, 'store']);
+Route::get('/clientes/{id}', [ClienteController::class, 'show']);
+Route::put('/clientes/{id}', [ClienteController::class, 'update']);
+
+// Ventas
+Route::get('/ventas', [VentaController::class, 'index']);
+Route::get('/ventas/catalogo', [VentaController::class, 'catalogo']);
+Route::post('/ventas', [VentaController::class, 'store']);

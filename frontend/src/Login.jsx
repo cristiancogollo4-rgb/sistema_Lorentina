@@ -79,7 +79,15 @@ function Login() {
     setError('');
     try {
       const respuesta = await api.post('/login', { username, password });
-      localStorage.setItem('usuarioLorentina', JSON.stringify(respuesta.data.usuario));
+      const usuario = respuesta.data.usuario;
+      
+      // Restringir el acceso web solo a ADMIN y VENDEDOR
+      if (usuario.rol !== 'ADMIN' && usuario.rol !== 'VENDEDOR') {
+         setError('Acceso denegado. Esta plataforma web es solo para Administración y Ventas. Por favor usa la app móvil.');
+         return;
+      }
+
+      localStorage.setItem('usuarioLorentina', JSON.stringify(usuario));
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Error al conectar con el servidor');

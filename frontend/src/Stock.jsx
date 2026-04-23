@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from './api';
 
-function Stock() {
+function Stock({ soloLectura = false }) {
   const [inventario, setInventario] = useState([]);
   const [inventarioFiltrado, setInventarioFiltrado] = useState([]);
   
@@ -88,25 +88,27 @@ function Stock() {
             <h2 style={{ color: '#582e2e', margin: 0 }}>📦 Inventario: {sucursalVisual}</h2>
             <p style={{color: '#888', margin: '5px 0 0 0'}}>Gestión de stock en tiempo real</p>
         </div>
-        <button 
-            onClick={() => setMostrarCarga(!mostrarCarga)}
-            style={{
-                background: mostrarCarga ? '#d32f2f' : '#582e2e',
-                color: 'white', border: 'none', padding: '10px 20px', borderRadius: '30px',
-                cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
-                display: 'flex', alignItems: 'center', gap: '8px'
-            }}
-        >
-            {mostrarCarga ? '✖ Cerrar Carga' : '☁️ Actualizar Stock'}
-        </button>
+        {!soloLectura && (
+          <button 
+              onClick={() => setMostrarCarga(!mostrarCarga)}
+              style={{
+                  background: mostrarCarga ? '#d32f2f' : '#582e2e',
+                  color: 'white', border: 'none', padding: '10px 20px', borderRadius: '30px',
+                  cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+                  display: 'flex', alignItems: 'center', gap: '8px'
+              }}
+          >
+              {mostrarCarga ? '✖ Cerrar Carga' : '☁️ Actualizar Stock'}
+          </button>
+        )}
       </div>
 
-      {/* ZONA DE CARGA */}
-      {mostrarCarga && (
+      {/* ZONA DE CARGA — solo ADMIN */}
+      {!soloLectura && mostrarCarga && (
         <div style={styles.uploadBox}>
             <h3 style={{marginTop:0, color: '#444'}}>Actualización Masiva</h3>
             <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                <input type="file" onChange={(e) => setArchivo(e.target.files[0])} style={styles.input} />
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => setArchivo(e.target.files[0])} style={styles.input} />
                 <button onClick={handleUpload} disabled={cargando} style={styles.button}>
                     {cargando ? '⏳ Procesando...' : 'Subir Archivo'}
                 </button>

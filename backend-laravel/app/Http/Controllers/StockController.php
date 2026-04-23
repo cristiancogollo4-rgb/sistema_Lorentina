@@ -7,6 +7,7 @@ use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 class StockController extends Controller
@@ -34,23 +35,73 @@ class StockController extends Controller
             set_time_limit(0);
 
             $workbook = new XlsxWorkbook($request->file('file')->getRealPath());
-
-            InventarioZapato::whereIn('sucursal', ['CABECERA', 'FABRICA', 'TOTAL'])->delete();
-
             $registros = [];
-
-            $c1 = $this->procesarHoja($workbook, $this->buscarHoja($workbook, 'CABECERA'), 'CABECERA', null, $registros);
-            $c2 = $this->procesarHoja($workbook, $this->buscarHoja($workbook, 'FABRICA'), 'FABRICA', 'PLANA', $registros);
+            $hojaCabecera = $this->buscarHojaPreferida($workbook, ['CABECERA 2', 'CABECERA']);
+            $hojaFabrica = $this->buscarHojaPreferida($workbook, ['FABRICA']);
             $hojaZara = $this->buscarHojaPorCoincidencia($workbook, ['ZARA', 'LOLA']);
-            $c3 = $this->procesarHoja($workbook, $hojaZara, 'FABRICA', 'PLATAFORMA', $registros);
-            $c4 = $this->procesarHoja($workbook, $this->buscarHoja($workbook, 'TOTAL'), 'TOTAL', null, $registros);
 
-            $insertados = $this->insertarRegistros($registros);
+            $rangoCabeceraPlanas = $this->resolverRangoActual($workbook, $hojaCabecera, 'PLANA');
+            $rangoCabeceraPlataformas = $this->resolverRangoActual($workbook, $hojaCabecera, 'PLATAFORMA');
+            $rangoFabricaPlanas = $this->resolverRangoActual($workbook, $hojaFabrica, 'PLANA');
+            $rangoFabricaPlataformas = $this->resolverRangoActual($workbook, $hojaZara, 'PLATAFORMA');
+
+            $c1 = $this->procesarHoja(
+                $workbook,
+                $hojaCabecera,
+                'CABECERA',
+                'PLANA',
+                $registros,
+                $rangoCabeceraPlanas
+            );
+            $c2 = $this->procesarHoja(
+                $workbook,
+                $hojaCabecera,
+                'CABECERA',
+                'PLATAFORMA',
+                $registros,
+                $rangoCabeceraPlataformas
+            );
+            $c3 = $this->procesarHoja(
+                $workbook,
+                $hojaFabrica,
+                'FABRICA',
+                'PLANA',
+                $registros,
+                $rangoFabricaPlanas
+            );
+            $c4 = $this->procesarHoja(
+                $workbook,
+                $hojaZara,
+                'FABRICA',
+                'PLATAFORMA',
+                $registros,
+                $rangoFabricaPlataformas
+            );
+
+            $registrosTotales = $this->construirRegistrosTotales($registros);
+            $c5 = count($registrosTotales);
+
+            DB::transaction(function () use ($registros, $registrosTotales): void {
+                InventarioZapato::whereIn('sucursal', ['CABECERA', 'FABRICA', 'TOTAL'])->delete();
+
+                $todosLosRegistros = array_merge(
+                    array_values($registros),
+                    array_values($registrosTotales)
+                );
+
+                $this->insertarRegistros($todosLosRegistros);
+            });
+
+            $insertados = count($registros) + $c5;
 
             return response()->json([
                 'mensaje' => 'Stock sincronizado',
-                'detalles' => "Cargados: Cabecera ({$c1}), Fabrica (" . ($c2 + $c3) . "), Total ({$c4}), Insertados ({$insertados})",
+                'detalles' => "Cargados: Cabecera planas ({$c1}), Cabecera plataformas ({$c2}), Fabrica planas ({$c3}), Fabrica plataformas ({$c4}), Total ({$c5}), Insertados ({$insertados})",
             ]);
+        } catch (RuntimeException $error) {
+            report($error);
+
+            return response()->json(['error' => $error->getMessage()], 500);
         } catch (Throwable $error) {
             report($error);
 
@@ -64,6 +115,21 @@ class StockController extends Controller
 
         foreach ($workbook->getSheetNames() as $sheetName) {
             if (str_contains($this->normalizeSheetName($sheetName), $nombreLimpio)) {
+                return $sheetName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $preferencias
+     */
+    private function buscarHojaPreferida(XlsxWorkbook $workbook, array $preferencias): ?string
+    {
+        foreach ($preferencias as $nombre) {
+            $sheetName = $this->buscarHoja($workbook, $nombre);
+            if ($sheetName !== null) {
                 return $sheetName;
             }
         }
@@ -93,6 +159,44 @@ class StockController extends Controller
         return strtoupper(str_replace(' ', '', $value));
     }
 
+    /**
+     * @return array{start_row:int, end_row:int}|null
+     */
+    private function resolverRangoActual(XlsxWorkbook $workbook, ?string $sheetName, string $tipoEsperado): ?array
+    {
+        if ($sheetName === null) {
+            return null;
+        }
+
+        $rows = $workbook->getSheetRowsIndexed($sheetName);
+        $ranges = $workbook->getSheetSumRanges($sheetName);
+        $candidatos = [];
+
+        foreach ($ranges as $range) {
+            $tipoRange = $this->inferirTipoRango($rows, $range['start_row'], $range['end_row']);
+
+            if ($tipoRange !== $tipoEsperado) {
+                continue;
+            }
+
+            $candidatos[] = [
+                'start_row' => $range['start_row'],
+                'end_row' => $range['end_row'],
+            ];
+        }
+
+        usort(
+            $candidatos,
+            fn (array $a, array $b) => $a['end_row'] <=> $b['end_row']
+        );
+
+        if ($candidatos !== []) {
+            return $candidatos[array_key_last($candidatos)];
+        }
+
+        return null;
+    }
+
     private function parseIntSafe(mixed $value): int
     {
         if ($value === null || $value === '') {
@@ -109,45 +213,40 @@ class StockController extends Controller
         ?string $sheetName,
         string $sucursalAsignada,
         ?string $forzarTipo = null,
-        array &$registros = []
+        array &$registros = [],
+        ?array $rango = null
     ): int {
         if (! $sheetName) {
             return 0;
         }
 
-        $rawData = $workbook->getSheetRows($sheetName);
+        $rawData = $workbook->getSheetRowsIndexed($sheetName);
         $contador = 0;
 
-        foreach ($rawData as $row) {
+        foreach ($rawData as $rowNumber => $row) {
             if ($row === []) {
                 continue;
             }
 
-            $refColor = $row[0] ?? null;
-            if (! is_string($refColor) || trim($refColor) === '') {
-                continue;
-            }
-
-            $texto = strtoupper($refColor);
-
             if (
-                str_contains($texto, 'REF Y COLOR') ||
-                str_contains($texto, 'STOCK') ||
-                str_contains($texto, 'ENTRADAS') ||
-                str_starts_with($texto, 'TOTAL')
+                $rango !== null &&
+                ($rowNumber < $rango['start_row'] || $rowNumber > $rango['end_row'])
             ) {
                 continue;
             }
 
-            $meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-            $esFilaMes = collect($meses)->contains(fn (string $mes) => str_contains($texto, $mes) && strlen($texto) < 15);
-            if ($esFilaMes) {
+            $refColor = trim((string) ($row[0] ?? ''));
+            if ($refColor === '') {
                 continue;
             }
 
-            $partes = preg_split('/\s+/', trim($refColor)) ?: [];
-            $referencia = strtoupper($partes[0] ?? '');
-            $color = trim(implode(' ', array_slice($partes, 1))) ?: 'UNICO';
+            $texto = strtoupper(preg_replace('/\s+/', ' ', $refColor) ?? $refColor);
+
+            if ($this->debeIgnorarFila($texto)) {
+                continue;
+            }
+
+            [$referencia, $color] = $this->parsearReferenciaYColor($refColor);
 
             if (strlen($referencia) <= 1) {
                 continue;
@@ -156,6 +255,7 @@ class StockController extends Controller
             $tipo = $forzarTipo ?? 'PLANA';
             if ($forzarTipo === null && (
                 str_starts_with($referencia, 'Z') ||
+                str_starts_with($referencia, 'LOLAS') ||
                 str_starts_with($referencia, 'LOLA') ||
                 str_contains($referencia, 'TENIS') ||
                 str_starts_with($referencia, 'P')
@@ -173,9 +273,7 @@ class StockController extends Controller
             $t42 = $this->parseIntSafe($row[9] ?? null);
             $total = $t35 + $t36 + $t37 + $t38 + $t39 + $t40 + $t41 + $t42;
 
-            $key = implode('|', [$referencia, $color, $sucursalAsignada]);
-
-            $registros[$key] = [
+            $this->agregarRegistro($registros, [
                 'referencia' => $referencia,
                 'color' => $color,
                 'sucursal' => $sucursalAsignada,
@@ -190,7 +288,7 @@ class StockController extends Controller
                 't42' => $t42,
                 'total' => $total,
                 'updated_at' => now(),
-            ];
+            ]);
 
             $contador++;
         }
@@ -200,6 +298,127 @@ class StockController extends Controller
 
     /**
      * @param array<string, array<string, mixed>> $registros
+     */
+    private function construirRegistrosTotales(array $registros): array
+    {
+        $totales = [];
+
+        foreach ($registros as $registro) {
+            $registroTotal = $registro;
+            $registroTotal['sucursal'] = 'TOTAL';
+            $registroTotal['updated_at'] = now();
+
+            $this->agregarRegistro($totales, $registroTotal);
+        }
+
+        return $totales;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $registros
+     * @param array<string, mixed> $registro
+     */
+    private function agregarRegistro(array &$registros, array $registro): void
+    {
+        $key = implode('|', [
+            (string) $registro['referencia'],
+            (string) $registro['color'],
+            (string) $registro['sucursal'],
+            (string) $registro['tipo'],
+        ]);
+
+        if (! isset($registros[$key])) {
+            $registros[$key] = $registro;
+
+            return;
+        }
+
+        foreach (['t35', 't36', 't37', 't38', 't39', 't40', 't41', 't42', 'total'] as $campo) {
+            $registros[$key][$campo] = (int) $registros[$key][$campo] + (int) $registro[$campo];
+        }
+
+        $registros[$key]['updated_at'] = $registro['updated_at'];
+    }
+
+    private function debeIgnorarFila(string $texto): bool
+    {
+        return
+            str_contains($texto, 'REF Y COLOR') ||
+            str_contains($texto, 'STOCK') ||
+            str_contains($texto, 'ENTRADAS') ||
+            str_contains($texto, 'NO TOCAR') ||
+            str_contains($texto, 'MUESTRA PARA VENTA') ||
+            str_contains($texto, 'PLATAFORMAS ZARA') ||
+            str_starts_with($texto, 'TOTAL');
+    }
+
+    /**
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function inferirTipoRango(array $rows, int $startRow, int $endRow): string
+    {
+        $registrosValidos = 0;
+        $registrosPlataforma = 0;
+
+        foreach ($rows as $rowNumber => $row) {
+            if ($rowNumber < $startRow || $rowNumber > $endRow) {
+                continue;
+            }
+
+            $refColor = trim((string) ($row[0] ?? ''));
+            if ($refColor === '') {
+                continue;
+            }
+
+            [$referencia] = $this->parsearReferenciaYColor($refColor);
+            if (strlen($referencia) <= 1) {
+                continue;
+            }
+
+            $registrosValidos++;
+
+            if (
+                str_starts_with($referencia, 'Z') ||
+                str_starts_with($referencia, 'LOLAS') ||
+                str_starts_with($referencia, 'LOLA') ||
+                str_contains($referencia, 'TENIS')
+            ) {
+                $registrosPlataforma++;
+            }
+        }
+
+        if ($registrosValidos > 0 && $registrosPlataforma >= (int) ceil($registrosValidos / 2)) {
+            return 'PLATAFORMA';
+        }
+
+        return 'PLANA';
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function parsearReferenciaYColor(string $refColor): array
+    {
+        $partes = preg_split('/\s+/', trim($refColor)) ?: [];
+        $referencia = strtoupper($partes[0] ?? '');
+        $offsetColor = 1;
+
+        if (
+            isset($partes[1]) &&
+            preg_match('/^[A-Z]+$/', $referencia) === 1 &&
+            preg_match('/^\d+[A-Z]?$/i', $partes[1]) === 1
+        ) {
+            $referencia .= ' ' . strtoupper($partes[1]);
+            $offsetColor = 2;
+        }
+
+        $color = trim(implode(' ', array_slice($partes, $offsetColor))) ?: 'UNICO';
+
+        return [$referencia, $color];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $registros
      */
     private function insertarRegistros(array $registros): int
     {
