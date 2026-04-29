@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
+use App\Models\InventarioMovimiento;
 use App\Models\OrdenProduccion;
 use App\Models\Producto;
 use App\Models\TarifaCategoria;
@@ -274,6 +275,8 @@ class ProductionController extends Controller
 
             $this->sumarOrdenAInventario($orden, 'CABECERA', $tipo);
             $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
+            $this->registrarMovimientoIngresoOrden($orden, 'CABECERA', $tipo);
+            $this->registrarMovimientoIngresoOrden($orden, 'TOTAL', $tipo);
 
             $orden->update(['estado' => 'EN_STOCK']);
         });
@@ -425,6 +428,30 @@ class ProductionController extends Controller
         ));
         $inventario->updated_at = now();
         $inventario->save();
+    }
+
+    private function registrarMovimientoIngresoOrden(OrdenProduccion $orden, string $sucursal, string $tipo): void
+    {
+        foreach (range(35, 42) as $talla) {
+            $cantidad = (int) ($orden->{"t{$talla}"} ?? 0);
+            if ($cantidad <= 0) {
+                continue;
+            }
+
+            InventarioMovimiento::query()->create([
+                'tipo_movimiento' => 'IN',
+                'orden_produccion_id' => $orden->id,
+                'venta_id' => null,
+                'referencia' => (string) $orden->referencia,
+                'color' => (string) $orden->color,
+                'tipo' => $tipo,
+                'sucursal' => $sucursal,
+                'talla' => $talla,
+                'cantidad' => $cantidad,
+                'usuario_id' => null,
+                'created_at' => now(),
+            ]);
+        }
     }
 
     private function formatOrden(OrdenProduccion $orden): array

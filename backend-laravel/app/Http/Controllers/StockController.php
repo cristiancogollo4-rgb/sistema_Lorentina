@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
+use App\Models\InventarioMovimiento;
 use App\Models\Producto;
 use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
@@ -167,6 +168,36 @@ class StockController extends Controller
                 $campo = "t{$talla}";
                 $origen->{$campo} = (int) ($origen->{$campo} ?? 0) - $cantidad;
                 $destino->{$campo} = (int) ($destino->{$campo} ?? 0) + $cantidad;
+
+                if ($cantidad > 0) {
+                    InventarioMovimiento::query()->create([
+                        'tipo_movimiento' => 'TRANSFER_OUT',
+                        'orden_produccion_id' => null,
+                        'venta_id' => null,
+                        'referencia' => (string) $data['referencia'],
+                        'color' => (string) $data['color'],
+                        'tipo' => (string) $data['tipo'],
+                        'sucursal' => (string) $data['origen'],
+                        'talla' => (int) $talla,
+                        'cantidad' => (int) $cantidad,
+                        'usuario_id' => null,
+                        'created_at' => now(),
+                    ]);
+
+                    InventarioMovimiento::query()->create([
+                        'tipo_movimiento' => 'TRANSFER_IN',
+                        'orden_produccion_id' => null,
+                        'venta_id' => null,
+                        'referencia' => (string) $data['referencia'],
+                        'color' => (string) $data['color'],
+                        'tipo' => (string) $data['tipo'],
+                        'sucursal' => (string) $data['destino'],
+                        'talla' => (int) $talla,
+                        'cantidad' => (int) $cantidad,
+                        'usuario_id' => null,
+                        'created_at' => now(),
+                    ]);
+                }
             }
 
             $origen->total = $this->sumarTotalInventario($origen);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cliente;
 use App\Models\DetalleVenta;
 use App\Models\InventarioZapato;
+use App\Models\InventarioMovimiento;
 use App\Models\Local;
 use App\Models\Producto;
 use App\Models\Venta;
@@ -202,7 +203,7 @@ class VentaController extends Controller
                 ]);
             }
 
-            $this->descontarInventarioVenta($data['items'], $productos, (string) $data['sucursal']);
+            $this->descontarInventarioVenta($data['items'], $productos, (string) $data['sucursal'], (int) $venta->id);
 
             return $venta->load(['cliente:id,nombre', 'local:id,nombre', 'items']);
         });
@@ -288,7 +289,7 @@ class VentaController extends Controller
      * @param array<int, array<string, mixed>> $items
      * @param \Illuminate\Support\Collection<int, Producto> $productos
      */
-    private function descontarInventarioVenta(array $items, Collection $productos, string $sucursal): void
+    private function descontarInventarioVenta(array $items, Collection $productos, string $sucursal, int $ventaId): void
     {
         $totalesPorProducto = [];
 
@@ -337,6 +338,20 @@ class VentaController extends Controller
                     ]);
                 }
                 $inventarioSucursal->{$campo} = (int) ($inventarioSucursal->{$campo} ?? 0) - $cantidad;
+
+                InventarioMovimiento::query()->create([
+                    'tipo_movimiento' => 'OUT',
+                    'orden_produccion_id' => null,
+                    'venta_id' => $ventaId,
+                    'referencia' => (string) $producto->referencia,
+                    'color' => (string) $producto->color,
+                    'tipo' => (string) $producto->tipo,
+                    'sucursal' => $sucursal,
+                    'talla' => (int) $talla,
+                    'cantidad' => (int) $cantidad,
+                    'usuario_id' => null,
+                    'created_at' => now(),
+                ]);
             }
 
             $inventarioSucursal->total = $this->sumarTotalInventario($inventarioSucursal);
