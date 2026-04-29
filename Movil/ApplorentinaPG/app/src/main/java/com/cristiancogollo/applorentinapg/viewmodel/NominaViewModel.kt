@@ -30,7 +30,7 @@ class NominaViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = NominaUiState.Loading
             try {
-                val response = api.obtenerNomina(userId, userRol)
+                val response = api.obtenerNomina(userId, normalizarRolNomina(userRol))
                 if (response.isSuccessful && response.body() != null) {
                     _uiState.value = NominaUiState.Success(response.body()!!)
                 } else {
@@ -47,5 +47,15 @@ class NominaViewModel : ViewModel() {
         val format = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
         format.maximumFractionDigits = 0
         return format.format(valor)
+    }
+
+    private fun normalizarRolNomina(userRol: String): String {
+        return when (userRol.uppercase()) {
+            "ARMADOR", "ARMADO" -> "ARMADO"
+            "COSTURERO", "COSTURA" -> "COSTURA"
+            "SOLADOR", "SOLADURA" -> "SOLADURA"
+            "EMPLANTILLADOR", "EMPLANTILLADO" -> "EMPLANTILLADO"
+            else -> userRol.uppercase()
+        }
     }
 }

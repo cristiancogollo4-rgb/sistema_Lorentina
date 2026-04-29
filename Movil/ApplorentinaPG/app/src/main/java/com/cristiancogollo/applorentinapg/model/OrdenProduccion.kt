@@ -6,41 +6,30 @@ data class OrdenProduccion(
     val id: Int,
     val numeroOrden: String,
 
-    // Las fechas vienen como String ISO desde Node.js (ej: "2024-01-20T10:00:00.000Z")
-    val fechaInicio: String,
+    // Laravel puede omitir algunos campos heredados del backend anterior.
+    val fechaInicio: String? = null,
     val estado: String,
 
-    // --- DETALLE ---
     val referencia: String,
     val color: String,
-    val categoria: String,
+    val categoria: String? = null,
 
-    // --- PRECIOS ESPECÍFICOS (AGREGAR ESTOS) ---
     val precioCorte: Double = 0.0,
     val precioArmado: Double = 0.0,
     val precioCostura: Double = 0.0,
     val precioSoladura: Double = 0.0,
     val precioEmplantillado: Double = 0.0,
-
-
-    val precioPactado: Double,
-    val fotoUrl: String?, // Puede ser nulo (?)
-    val materiales: String,
-    val observacion: String?, // Puede ser nulo (?)
-
-    // --- DESTINO ---
-    val destino: String,
-    val clienteId: Int?, // Si es para Stock, esto será null
-
-    // --- RESPONSABLES (IDs) ---
+    val precioPactado: Double = 0.0,
+    val fotoUrl: String? = null,
+    val materiales: String? = null,
+    val observacion: String? = null,
+    val destino: String? = null,
+    val clienteId: Int? = null,
     val cortadorId: Int?,
     val armadorId: Int?,
     val costureroId: Int?,
     val soladorId: Int?,
     val emplantilladorId: Int?,
-
-    // --- LA CURVA (Tallas) ---
-    // Usamos @SerializedName por si acaso, aunque coinciden con el backend
     val t34: Int = 0,
     val t35: Int = 0,
     val t36: Int = 0,
@@ -52,17 +41,9 @@ data class OrdenProduccion(
     val t42: Int = 0,
     val t43: Int = 0,
     val t44: Int = 0,
-
     val totalPares: Int
 
 ) : Serializable {
-
-    /**
-     * FUNCIÓN ÚTIL:
-     * Genera un texto resumen para mostrar en la tarjeta de la App.
-     * Ejemplo de retorno: "35(2) - 37(1) - 40(5)"
-     * Así no tienes que llenar la pantalla de ceros.
-     */
     fun obtenerResumenCurva(): String {
         val lista = mutableListOf<String>()
         if (t34 > 0) lista.add("34($t34)")

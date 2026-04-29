@@ -15,6 +15,9 @@ function Stock({ soloLectura = false }) {
   const [archivo, setArchivo] = useState(null);
   const [mensaje, setMensaje] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [productoTransferencia, setProductoTransferencia] = useState(null);
+  const [destinoTransferencia, setDestinoTransferencia] = useState('CABECERA');
+  const [cantidadesTransferencia, setCantidadesTransferencia] = useState({});
 
   // 1. Cargar datos iniciales
   useEffect(() => {
@@ -78,6 +81,47 @@ function Stock({ soloLectura = false }) {
   };
 
   const totalParesVisibles = inventarioFiltrado.reduce((acc, item) => acc + item.total, 0);
+
+  const abrirTransferencia = (item) => {
+    setProductoTransferencia(item);
+    setDestinoTransferencia(sucursalVisual === 'CABECERA' ? 'FABRICA' : 'CABECERA');
+    setCantidadesTransferencia({
+      35: 0, 36: 0, 37: 0, 38: 0, 39: 0, 40: 0, 41: 0, 42: 0,
+    });
+  };
+
+  const cerrarTransferencia = () => {
+    setProductoTransferencia(null);
+    setCantidadesTransferencia({});
+  };
+
+  const actualizarCantidadTransferencia = (talla, valor) => {
+    setCantidadesTransferencia((prev) => ({
+      ...prev,
+      [talla]: Math.max(0, Number(valor) || 0),
+    }));
+  };
+
+  const guardarTransferencia = async () => {
+    if (!productoTransferencia) return;
+
+    try {
+      await api.post('/stock/transferir', {
+        referencia: productoTransferencia.referencia,
+        color: productoTransferencia.color,
+        tipo: productoTransferencia.tipo,
+        origen: sucursalVisual,
+        destino: destinoTransferencia,
+        cantidades: cantidadesTransferencia,
+      });
+
+      await cargarInventario();
+      cerrarTransferencia();
+      setMensaje('Stock transferido correctamente.');
+    } catch (error) {
+      alert(error.response?.data?.error || 'No se pudo transferir el stock.');
+    }
+  };
 
   return (
     <div className="fade-in" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -176,6 +220,7 @@ function Stock({ soloLectura = false }) {
               <th>Tipo</th>
               {[35,36,37,38,39,40,41,42].map(t => <th key={t} className="th-talla">{t}</th>)}
               <th style={{textAlign: 'right', padding: '15px'}}>Total</th>
+              {!soloLectura && sucursalVisual !== 'TOTAL' && <th style={{padding: '15px'}}>Mover</th>}
             </tr>
           </thead>
           <tbody>
@@ -199,14 +244,58 @@ function Stock({ soloLectura = false }) {
                 <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#d32f2f', paddingRight: '15px' }}>
                     {item.total}
                 </td>
+                {!soloLectura && sucursalVisual !== 'TOTAL' && (
+                  <td style={{ padding: '10px 15px' }}>
+                    <button onClick={() => abrirTransferencia(item)} style={styles.transferBtn}>Mover</button>
+                  </td>
+                )}
               </tr>
             ))}
              {inventarioFiltrado.length === 0 && (
-              <tr><td colSpan="12" style={{ textAlign: 'center', padding: '40px', color: '#999' }}>No se encontraron zapatos.</td></tr>
+              <tr><td colSpan={soloLectura || sucursalVisual === 'TOTAL' ? 12 : 13} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>No se encontraron zapatos.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {productoTransferencia && (
+        <div style={styles.overlay}>
+          <div style={styles.modal}>
+            <h3 style={{ marginTop: 0, color: '#582e2e' }}>Mover stock</h3>
+            <p style={{ color: '#666', marginTop: 0 }}>
+              <strong>{productoTransferencia.referencia}</strong> {productoTransferencia.color} | {sucursalVisual} a {destinoTransferencia}
+            </p>
+
+            <label style={styles.modalLabel}>Destino</label>
+            <select value={destinoTransferencia} onChange={(e) => setDestinoTransferencia(e.target.value)} style={styles.modalInput}>
+              {['CABECERA', 'FABRICA'].filter((sucursal) => sucursal !== sucursalVisual).map((sucursal) => (
+                <option key={sucursal} value={sucursal}>{sucursal}</option>
+              ))}
+            </select>
+
+            <div style={styles.tallasGrid}>
+              {[35,36,37,38,39,40,41,42].map((talla) => (
+                <div key={talla}>
+                  <label style={styles.modalLabel}>T{talla} (disp. {productoTransferencia[`t${talla}`] || 0})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={productoTransferencia[`t${talla}`] || 0}
+                    value={cantidadesTransferencia[talla] ?? 0}
+                    onChange={(e) => actualizarCantidadTransferencia(talla, e.target.value)}
+                    style={styles.modalInput}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button onClick={cerrarTransferencia} style={styles.btnCancel}>Cancelar</button>
+              <button onClick={guardarTransferencia} style={styles.button}>Confirmar traslado</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -221,7 +310,14 @@ const styles = {
   chip: { background: '#eee', border: 'none', padding: '5px 15px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.85rem', color: '#555' },
   chipActive: { background: '#e5d3c3', color: '#582e2e', border: '1px solid #582e2e', padding: '5px 15px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' },
   badgePlana: { fontSize: '0.7rem', background: '#e3f2fd', color: '#1565c0', padding: '3px 8px', borderRadius: '10px' },
-  badgePlataforma: { fontSize: '0.7rem', background: '#fce4ec', color: '#c2185b', padding: '3px 8px', borderRadius: '10px' }
+  badgePlataforma: { fontSize: '0.7rem', background: '#fce4ec', color: '#c2185b', padding: '3px 8px', borderRadius: '10px' },
+  transferBtn: { background: '#5D4037', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  modal: { background: 'white', borderRadius: '16px', padding: '24px', width: '760px', maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' },
+  modalLabel: { display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#555', marginBottom: '6px' },
+  modalInput: { width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', boxSizing: 'border-box' },
+  tallasGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px', marginTop: '16px' },
+  btnCancel: { background: '#e0e0e0', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', color: '#333', fontWeight: 'bold' }
 };
 
 export default Stock;

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,10 +19,15 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val properties = java.util.Properties()
-        properties.load(project.rootProject.file("local.properties").inputStream())
-        val baseUrl = properties.getProperty("API_BASE_URL") ?: "\"http://10.0.2.2:8000/\""
-        buildConfigField("String", "BASE_URL", baseUrl)
+        val properties = Properties()
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+        val rawBaseUrl = properties.getProperty("API_BASE_URL")?.trim()?.trim('"')
+            ?: "http://10.0.2.2:8000/"
+        val normalizedBaseUrl = rawBaseUrl.removeSuffix("/") + "/"
+        buildConfigField("String", "BASE_URL", "\"$normalizedBaseUrl\"")
     }
 
     buildTypes {

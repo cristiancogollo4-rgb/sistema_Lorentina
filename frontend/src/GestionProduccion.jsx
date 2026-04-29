@@ -110,6 +110,21 @@ function GestionProduccion() {
     .catch(err => alert("Error al asignar"));
   };
 
+  const pasarAStock = (orden) => {
+    if (!window.confirm(`¿Pasar la orden ${orden.numeroOrden || orden.numero_orden} a stock?`)) return;
+
+    api.post('/produccion/pasar-a-stock', {
+      ordenId: orden.id,
+    })
+    .then((res) => {
+      cargarDatos();
+      alert(res.data?.mensaje || "Orden ingresada a stock");
+    })
+    .catch((err) => {
+      alert(err?.response?.data?.error || "No fue posible pasar la orden a stock");
+    });
+  };
+
   const renderBotonAccion = (orden) => {
     const estado = orden.estado || "";
     let idAsignado = null;
@@ -122,6 +137,12 @@ function GestionProduccion() {
     else if (estado === "EN_SOLADURA") { idAsignado = orden.soladorId; rolRequerido = "SOLADOR"; nombreEtapa = "Soladura"; }
     else if (estado === "EN_EMPLANTILLADO") { idAsignado = orden.emplantilladorId; rolRequerido = "EMPLANTILLADOR"; nombreEtapa = "Emplantillado"; }
 
+    if (orden.puedePasarAStock) {
+        return <button onClick={() => pasarAStock(orden)} style={{ background: '#2e7d32', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Pasar a Stock</button>;
+    }
+    if (estado === "EN_STOCK") {
+        return <span style={{ fontSize: '0.85rem', color: '#2e7d32', fontWeight: 'bold', border: '1px solid #2e7d32', padding:'4px 8px', borderRadius:'4px', background: '#e8f5e9' }}>En stock</span>;
+    }
     if (!idAsignado && rolRequerido) {
         return <button onClick={() => abrirAsignar(orden, rolRequerido)} style={{ background: '#5D4037', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>👤 Asignar {nombreEtapa}</button>;
     }

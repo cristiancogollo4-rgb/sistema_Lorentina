@@ -11,6 +11,7 @@ const FORM_VENTA = {
   cliente_id: '',
   canal_venta: 'ONLINE',
   local_id: '',
+  sucursal: 'CABECERA',
   metodo_pago: 'TRANSFERENCIA',
   items: [],
 };
@@ -18,7 +19,7 @@ const FORM_VENTA = {
 function nuevaLinea() {
   return {
     seleccion: '',
-    orden_produccion_id: '',
+    producto_id: '',
     talla: '',
     cantidad: 1,
     precio_unitario: '',
@@ -26,6 +27,7 @@ function nuevaLinea() {
 }
 
 export default function Ventas({ usuario }) {
+  const SUCURSALES_STOCK = ['CABECERA', 'FABRICA'];
   const [ventas, setVentas] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [locales, setLocales] = useState([]);
@@ -39,6 +41,14 @@ export default function Ventas({ usuario }) {
   useEffect(() => {
     cargarTodo();
   }, []);
+
+  useEffect(() => {
+    if (!mostrarModal) {
+      return;
+    }
+
+    cargarCatalogo(form.sucursal || 'CABECERA');
+  }, [form.sucursal, mostrarModal]);
 
   const opcionesPorClave = useMemo(() => {
     return paresDisponibles.reduce((acc, item) => {
@@ -58,7 +68,7 @@ export default function Ventas({ usuario }) {
     try {
       const [ventasRes, catalogoRes] = await Promise.all([
         api.get('/ventas'),
-        api.get('/ventas/catalogo'),
+        api.get(`/ventas/catalogo?sucursal=${form.sucursal || 'CABECERA'}`),
       ]);
 
       setVentas(ventasRes.data);
@@ -71,6 +81,18 @@ export default function Ventas({ usuario }) {
       setError('No se pudo cargar la seccion de ventas.');
     } finally {
       setCargando(false);
+    }
+  };
+
+  const cargarCatalogo = async (sucursal) => {
+    try {
+      const catalogoRes = await api.get(`/ventas/catalogo?sucursal=${sucursal}`);
+      setClientes(catalogoRes.data.clientes || []);
+      setLocales(catalogoRes.data.locales || []);
+      setParesDisponibles(catalogoRes.data.paresDisponibles || []);
+    } catch (e) {
+      console.error('Error cargando catalogo:', e);
+      setError('No se pudo actualizar el catalogo de stock.');
     }
   };
 
@@ -96,6 +118,14 @@ export default function Ventas({ usuario }) {
           ...prev,
           canal_venta: value,
           local_id: value === 'LOCAL' ? prev.local_id : '',
+        };
+      }
+
+      if (field === 'sucursal') {
+        return {
+          ...prev,
+          sucursal: value,
+          items: prev.items.map(() => nuevaLinea()),
         };
       }
 
@@ -127,7 +157,7 @@ export default function Ventas({ usuario }) {
 
       if (field === 'seleccion') {
         const opcion = opcionesPorClave[value];
-        actual.orden_produccion_id = opcion ? opcion.ordenId : '';
+        actual.producto_id = opcion ? opcion.productoId : '';
         actual.talla = opcion ? opcion.talla : '';
         actual.cantidad = 1;
       }
@@ -158,8 +188,8 @@ export default function Ventas({ usuario }) {
     const items = [];
 
     for (const item of form.items) {
-      if (!item.orden_produccion_id || !item.talla) {
-        setError('Cada linea debe estar ligada a una tarea y talla.');
+      if (!item.producto_id || !item.talla) {
+        setError('Cada linea debe estar ligada a un producto y talla.');
         return;
       }
       if (!(Number(item.cantidad) > 0)) {
@@ -172,7 +202,7 @@ export default function Ventas({ usuario }) {
       }
 
       items.push({
-        orden_produccion_id: Number(item.orden_produccion_id),
+        producto_id: Number(item.producto_id),
         talla: Number(item.talla),
         cantidad: Number(item.cantidad),
         precio_unitario: Number(item.precio_unitario),
@@ -188,6 +218,7 @@ export default function Ventas({ usuario }) {
         vendedor_id: usuario.id,
         canal_venta: form.canal_venta,
         local_id: form.canal_venta === 'LOCAL' ? Number(form.local_id) : null,
+        sucursal: form.sucursal,
         metodo_pago: form.metodo_pago,
         items,
       });
@@ -211,7 +242,7 @@ export default function Ventas({ usuario }) {
         <div>
           <h2 style={{ color: '#582e2e', margin: 0 }}>Ventas</h2>
           <p style={{ color: '#888', margin: '5px 0 0 0' }}>
-            Registra ventas ligadas a cliente, canal, local y tarea de produccion.
+            Registra ventas ligadas a cliente, canal, local y stock disponible.
           </p>
         </div>
         <button onClick={abrirNuevaVenta} style={btnPrimario}>+ Nueva Venta</button>
@@ -315,6 +346,15 @@ export default function Ventas({ usuario }) {
               </div>
 
               <div>
+                <label style={labelStyle}>Descontar de *</label>
+                <select style={selectStyle} value={form.sucursal} onChange={(e) => setField('sucursal', e.target.value)}>
+                  {SUCURSALES_STOCK.map((sucursal) => (
+                    <option key={sucursal} value={sucursal}>{sucursal}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label style={labelStyle}>Metodo de pago *</label>
                 <select style={selectStyle} value={form.metodo_pago} onChange={(e) => setField('metodo_pago', e.target.value)}>
                   {METODOS_PAGO.map((metodo) => (
@@ -348,16 +388,16 @@ export default function Ventas({ usuario }) {
                 return (
                   <div key={index} style={lineaVenta}>
                     <div style={{ flex: 2.5 }}>
-                      <label style={labelStyle}>Par / tarea *</label>
+                      <label style={labelStyle}>Producto *</label>
                       <select
                         style={selectStyle}
                         value={item.seleccion}
                         onChange={(e) => actualizarLinea(index, 'seleccion', e.target.value)}
                       >
-                        <option value="">-- Seleccionar tarea y talla --</option>
+                        <option value="">-- Seleccionar producto y talla --</option>
                         {paresDisponibles.map((opcion) => (
                           <option key={opcion.key} value={opcion.key}>
-                            {`${opcion.numeroOrden} | ${opcion.referencia} ${opcion.color} | T${opcion.talla} | ${opcion.disponibles} disp.`}
+                            {`${opcion.referencia} ${opcion.color} | ${opcion.tipo} | ${opcion.sucursal} | T${opcion.talla} | ${opcion.disponibles} disp.`}
                           </option>
                         ))}
                       </select>
@@ -405,7 +445,7 @@ export default function Ventas({ usuario }) {
 
             <div style={{ marginTop: '22px', padding: '16px 18px', background: '#f8f4f1', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ color: '#666', fontSize: '0.92rem' }}>
-                Cada linea queda ligada a una orden terminada y a una talla especifica.
+                Cada linea queda ligada a un producto disponible en stock y a una talla especifica.
               </div>
               <div style={{ fontWeight: 'bold', color: '#582e2e', fontSize: '1.1rem' }}>
                 Total: ${formatoNumero(totalVenta)}

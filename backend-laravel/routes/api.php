@@ -17,6 +17,7 @@ Route::put('/usuarios/{id}', [UserController::class, 'update']);
 Route::delete('/usuarios/{id}', [UserController::class, 'destroy']);
 Route::post('/stock/masivo', [StockController::class, 'masivo']);
 Route::get('/stock/zapatos', [StockController::class, 'index']);
+Route::post('/stock/transferir', [StockController::class, 'transferir']);
 Route::get('/empleados/corte', [ProductionController::class, 'empleadosCorte']);
 Route::get('/tarifas', [TarifaController::class, 'index']);
 Route::post('/tarifas/actualizar', [TarifaController::class, 'actualizar']);
@@ -26,6 +27,7 @@ Route::get('/nomina/{empleadoId}', [ProductionController::class, 'nomina']);
 Route::get('/produccion/tablero', [ProductionController::class, 'tablero']);
 Route::post('/produccion/asignar', [ProductionController::class, 'asignar']);
 Route::post('/produccion/terminar-tarea', [ProductionController::class, 'terminarTarea']);
+Route::post('/produccion/pasar-a-stock', [ProductionController::class, 'pasarAStock']);
 
 // Clientes
 Route::get('/clientes', [ClienteController::class, 'index']);

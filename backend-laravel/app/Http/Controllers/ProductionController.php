@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InventarioZapato;
 use App\Models\OrdenProduccion;
+use App\Models\Producto;
 use App\Models\TarifaCategoria;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductionController extends Controller
 {
@@ -95,7 +98,7 @@ class ProductionController extends Controller
         
         $queryOrdenes = OrdenProduccion::query()->where('estado', '!=', 'TERMINADO');
         $qCreadas = OrdenProduccion::query();
-        $qTerminadas = OrdenProduccion::query()->where('estado', 'TERMINADO');
+        $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
 
         if ($rango === 'semana') {
             $inicio = now()->startOfWeek();
@@ -206,12 +209,14 @@ class ProductionController extends Controller
             $orden->update(['estado' => 'EN_EMPLANTILLADO', 'fecha_fin_soladura' => $ahora]);
             $nuevoEstado = 'EN_EMPLANTILLADO';
         } elseif ($rol === 'EMPLANTILLADOR') {
+            $estadoFinal = $this->debeEsperarIngresoStock($orden) ? 'LISTO_PARA_STOCK' : 'TERMINADO';
+
             $orden->update([
-                'estado' => 'TERMINADO',
+                'estado' => $estadoFinal,
                 'fecha_fin_emplantillado' => $ahora,
                 'fecha_fin_terminado' => $ahora,
             ]);
-            $nuevoEstado = 'TERMINADO';
+            $nuevoEstado = $estadoFinal;
         } else {
             return response()->json(['error' => 'Rol no válido'], 400);
         }
@@ -219,6 +224,63 @@ class ProductionController extends Controller
         return response()->json([
             'mensaje' => '¡Tarea terminada con éxito!',
             'nuevoEstado' => $nuevoEstado,
+        ]);
+    }
+
+    public function pasarAStock(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ordenId' => ['required', 'integer'],
+        ]);
+
+        $orden = OrdenProduccion::findOrFail($data['ordenId']);
+
+        if (! $this->debeEsperarIngresoStock($orden)) {
+            return response()->json([
+                'error' => 'Solo las ordenes destinadas a stock se pueden ingresar desde este flujo.',
+            ], 422);
+        }
+
+        if ($orden->estado !== 'LISTO_PARA_STOCK') {
+            return response()->json([
+                'error' => 'La orden todavia no esta lista para pasar a stock.',
+            ], 422);
+        }
+
+        if ((int) $orden->t34 > 0 || (int) $orden->t43 > 0 || (int) $orden->t44 > 0) {
+            return response()->json([
+                'error' => 'La tabla de inventario actual solo soporta tallas 35 a 42. Ajusta primero esas tallas para esta orden.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($orden): void {
+            $tipo = $this->inferirTipoProducto((string) $orden->referencia);
+
+            Producto::query()->updateOrCreate(
+                [
+                    'referencia' => $orden->referencia,
+                    'color' => $orden->color,
+                    'tipo' => $tipo,
+                ],
+                [
+                    'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
+                    'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
+                    'precio_detal' => 0,
+                    'precio_mayor' => 0,
+                    'costo_produccion' => 0,
+                    'activo' => true,
+                ]
+            );
+
+            $this->sumarOrdenAInventario($orden, 'CABECERA', $tipo);
+            $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
+
+            $orden->update(['estado' => 'EN_STOCK']);
+        });
+
+        return response()->json([
+            'mensaje' => 'Orden ingresada a stock correctamente.',
+            'nuevoEstado' => 'EN_STOCK',
         ]);
     }
 
@@ -320,6 +382,51 @@ class ProductionController extends Controller
         ];
     }
 
+    private function debeEsperarIngresoStock(OrdenProduccion $orden): bool
+    {
+        return strtoupper((string) $orden->destino) === 'STOCK' && $orden->cliente_id === null;
+    }
+
+    private function inferirTipoProducto(string $referencia): string
+    {
+        $referencia = strtoupper(trim($referencia));
+
+        if (
+            str_starts_with($referencia, 'Z') ||
+            str_starts_with($referencia, 'LOLAS') ||
+            str_starts_with($referencia, 'LOLA') ||
+            str_contains($referencia, 'TENIS') ||
+            str_starts_with($referencia, 'P')
+        ) {
+            return 'PLATAFORMA';
+        }
+
+        return 'PLANA';
+    }
+
+    private function sumarOrdenAInventario(OrdenProduccion $orden, string $sucursal, string $tipo): void
+    {
+        $inventario = InventarioZapato::query()->firstOrNew([
+            'referencia' => $orden->referencia,
+            'color' => $orden->color,
+            'sucursal' => $sucursal,
+        ]);
+
+        $inventario->tipo = $tipo;
+
+        foreach (range(35, 42) as $talla) {
+            $campo = "t{$talla}";
+            $inventario->{$campo} = (int) ($inventario->{$campo} ?? 0) + (int) ($orden->{$campo} ?? 0);
+        }
+
+        $inventario->total = array_sum(array_map(
+            fn (int $talla) => (int) ($inventario->{"t{$talla}"} ?? 0),
+            range(35, 42)
+        ));
+        $inventario->updated_at = now();
+        $inventario->save();
+    }
+
     private function formatOrden(OrdenProduccion $orden): array
     {
         return [
@@ -336,6 +443,7 @@ class ProductionController extends Controller
             'materiales' => $orden->materiales,
             'observacion' => $orden->observacion,
             'destino' => $orden->destino,
+            'clienteId' => $orden->cliente_id,
             'cortadorId' => $orden->cortador_id,
             'armadorId' => $orden->armador_id,
             'costureroId' => $orden->costurero_id,
@@ -349,6 +457,7 @@ class ProductionController extends Controller
             'fechaFinEmplantillado' => optional($orden->fecha_fin_emplantillado)->toISOString(),
             'fechaFinTerminado' => optional($orden->fecha_fin_terminado)->toISOString(),
             'estado' => $orden->estado,
+            'puedePasarAStock' => $orden->estado === 'LISTO_PARA_STOCK' && $this->debeEsperarIngresoStock($orden),
             't34' => $orden->t34,
             't35' => $orden->t35,
             't36' => $orden->t36,

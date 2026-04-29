@@ -249,7 +249,7 @@ fun TaskItemCard(orden: OrdenProduccion, estadoUsuario: String, onVerDetalle: ()
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text("${orden.referencia} - ${orden.color}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("${orden.totalPares} Pares • ${orden.categoria}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text("${orden.totalPares} Pares • ${orden.categoria ?: "Producción"}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
             }
 
@@ -292,7 +292,7 @@ fun DetalleOrdenDialog(
                 // INFORMACIÓN CLAVE
                 DetalleItem("Orden", "#${orden.numeroOrden}")
                 DetalleItem("Referencia", "${orden.referencia} - ${orden.color}")
-                DetalleItem("Categoría", orden.categoria)
+                DetalleItem("Categoría", orden.categoria ?: "Producción")
 
                 // DINERO (Lógica inteligente mantenida)
                 val precioActual = when (orden.estado) {
