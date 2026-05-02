@@ -8,6 +8,7 @@ use App\Models\InventarioZapato;
 use App\Models\InventarioMovimiento;
 use App\Models\Local;
 use App\Models\Producto;
+use App\Models\User;
 use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,14 +17,25 @@ use Illuminate\Support\Facades\DB;
 
 class VentaController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $ventas = Venta::query()
+        $vendedorId = $request->query('vendedor_id');
+        \Log::info("VentaController@index - vendedor_id recibido: " . ($vendedorId ?? 'NULL'));
+
+        $query = Venta::query();
+        if ($vendedorId) {
+            $query->where('ventas.vendedor_id', (int) $vendedorId);
+        }
+
+        $ventas = $query
             ->with(['cliente:id,nombre,tipo_cliente', 'vendedor:id,nombre', 'local:id,nombre', 'items'])
             ->orderByDesc('fecha_venta')
             ->orderByDesc('id')
-            ->get()
-            ->map(function (Venta $venta) {
+            ->get();
+
+        \Log::info("VentaController@index - Ventas encontradas: " . $ventas->count());
+
+        $result = $ventas->map(function (Venta $venta) {
                 return [
                     'id' => $venta->id,
                     'fechaVenta' => optional($venta->fecha_venta)->toISOString(),
@@ -33,6 +45,7 @@ class VentaController extends Controller
                     'canalVenta' => $venta->canal_venta,
                     'local' => $venta->local?->nombre,
                     'metodoPago' => $venta->metodo_pago,
+                    'notas' => $venta->notas,
                     'total' => (float) $venta->total,
                     'totalPares' => (int) $venta->items->sum('cantidad'),
                     'items' => $venta->items->map(function (DetalleVenta $item) {
@@ -51,18 +64,21 @@ class VentaController extends Controller
             })
             ->values();
 
-        return response()->json($ventas);
+        return response()->json($result);
     }
 
     public function catalogo(): JsonResponse
     {
         $sucursal = strtoupper((string) request()->query('sucursal', 'CABECERA'));
+        $vendedorId = request()->query('vendedor_id');
+
         if (! in_array($sucursal, ['CABECERA', 'FABRICA'], true)) {
             $sucursal = 'CABECERA';
         }
 
         $clientes = Cliente::query()
             ->where('activo', true)
+            ->when($vendedorId, fn ($q) => $q->where('vendedor_id', (int) $vendedorId))
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'tipo_cliente', 'pais', 'ciudad', 'departamento', 'region_estado', 'moneda_preferida']);
 
@@ -70,6 +86,12 @@ class VentaController extends Controller
             ->where('activo', true)
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'direccion']);
+
+        $vendedores = User::query()
+            ->where('rol', 'VENDEDOR')
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'apellido']);
 
         $stockDisponible = InventarioZapato::query()
             ->where('sucursal', $sucursal)
@@ -121,6 +143,7 @@ class VentaController extends Controller
         return response()->json([
             'clientes' => $clientes,
             'locales' => $locales,
+            'vendedores' => $vendedores,
             'sucursalSeleccionada' => $sucursal,
             'paresDisponibles' => $opciones,
         ]);
@@ -140,6 +163,7 @@ class VentaController extends Controller
             'items.*.talla' => ['required', 'integer', 'between:34,44'],
             'items.*.cantidad' => ['required', 'integer', 'min:1'],
             'items.*.precio_unitario' => ['required', 'numeric', 'min:0'],
+            'notas' => ['nullable', 'string'],
         ]);
 
         $productoIds = collect($data['items'])->pluck('producto_id')->unique()->values()->all();
@@ -182,6 +206,7 @@ class VentaController extends Controller
                 'canal_venta' => $data['canal_venta'],
                 'local_id' => $data['canal_venta'] === 'LOCAL' ? $data['local_id'] : null,
                 'metodo_pago' => $data['metodo_pago'],
+                'notas' => $data['notas'] ?? null,
                 'total' => $total,
                 'fecha_venta' => now(),
             ]);

@@ -231,9 +231,10 @@ class LorentinaExcelSeeder extends Seeder
                 'vendedor_id' => $vendedorId,
                 'canal_venta' => (string) ($record['canal_venta'] ?? 'ONLINE'),
                 'local_id' => null,
-                'fecha_venta' => Carbon::parse((string) ($record['fecha_venta'] ?? '2026-01-01')),
+                'fecha_venta' => Carbon::parse((string) ($record['fecha_venta'] ?? '2026-01-01'))->addDays(rand(0, 110))->addHours(rand(0, 23)),
                 'total' => (float) ($record['total'] ?? 0),
                 'metodo_pago' => (string) ($record['metodo_pago'] ?? 'NO ESPECIFICADO'),
+                'notas' => 'Venta importada de Excel - Origen: ' . ($record['source_key'] ?? 'Desconocido'),
             ]);
 
             foreach (($record['items'] ?? []) as $item) {

@@ -52,5 +52,19 @@ class UserSeeder extends Seeder
                 ]
             );
         }
+
+        // Vendedores
+        User::updateOrCreate(
+            ['username' => 'juan.vendedor'],
+            [
+                'nombre' => 'Juan',
+                'apellido' => 'Vendedor',
+                'password' => $password,
+                'rol' => 'VENDEDOR',
+                'activo' => true,
+                'telefono' => '3210000000',
+                'cedula' => '999999999',
+            ]
+        );
     }
 }

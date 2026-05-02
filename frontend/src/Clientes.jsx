@@ -22,11 +22,15 @@ const TIPO_LABELS = {
 const badgeStyle = (tipo) => ({
   fontSize: '0.72rem',
   fontWeight: 'bold',
-  padding: '3px 10px',
+  padding: '4px 12px',
   borderRadius: '20px',
   background: tipo === 'MAYORISTA' ? '#e3f2fd' : '#f3e5f5',
   color: tipo === 'MAYORISTA' ? '#1565c0' : '#6a1b9a',
   border: `1px solid ${tipo === 'MAYORISTA' ? '#90caf9' : '#ce93d8'}`,
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px'
 });
 
 const FORM_VACIO = {
@@ -59,7 +63,9 @@ export default function Clientes({ usuario }) {
 
   const cargar = async () => {
     try {
-      const res = await api.get('/clientes');
+      const isVendedor = usuario?.rol?.includes('VENDEDOR');
+      const params = isVendedor ? `?vendedor_id=${usuario.id}` : '';
+      const res = await api.get(`/clientes${params}`);
       setClientes(res.data);
     } catch (e) {
       console.error('Error cargando clientes:', e);
@@ -280,7 +286,7 @@ export default function Clientes({ usuario }) {
               return (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                   <td style={{ padding: '12px 16px', fontWeight: 'bold', color: '#333' }}>{c.nombre}</td>
-                  <td>
+                  <td style={{ minWidth: '130px' }}>
                     <span style={badgeStyle(c.tipo_cliente)}>
                       {TIPO_LABELS[c.tipo_cliente]?.emoji} {c.tipo_cliente}
                     </span>

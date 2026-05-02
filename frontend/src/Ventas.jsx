@@ -15,6 +15,7 @@ const FORM_VENTA = {
   sucursal: 'CABECERA',
   metodo_pago: 'TRANSFERENCIA',
   items: [],
+  notas: '',
 };
 
 function nuevaLinea() {
@@ -34,68 +35,128 @@ export default function Ventas({ usuario }) {
   const [locales, setLocales] = useState([]);
   const [paresDisponibles, setParesDisponibles] = useState([]);
   const [mostrarModal, setMostrarModal] = useState(false);
+  const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(FORM_VENTA);
 
+  // Filtros
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('TODOS');
+  const [rangoFecha, setRangoFecha] = useState('TODOS');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+
+  const [vendedores, setVendedores] = useState([]);
+  const [filtroVendedor, setFiltroVendedor] = useState('');
+
+  async function cargarTodo() {
+    console.log("Iniciando cargarTodo...");
+    setCargando(true);
+    try {
+      const isVendedor = usuario?.rol === 'VENDEDOR' || usuario?.rol?.includes('VENDEDOR');
+      const vId = isVendedor ? usuario.id : filtroVendedor;
+      const params = vId ? `?vendedor_id=${vId}` : '';
+      
+      console.log("Consultando API ventas con params:", params);
+      const [ventasRes, catalogoRes] = await Promise.all([
+        api.get(`/ventas${params}`),
+        api.get(`/ventas/catalogo?sucursal=${form.sucursal || 'CABECERA'}${vId ? `&vendedor_id=${vId}` : ''}`),
+      ]);
+
+      console.log("Ventas recibidas:", ventasRes.data?.length);
+      setVentas(ventasRes.data || []);
+      setClientes(catalogoRes.data?.clientes || []);
+      setLocales(catalogoRes.data?.locales || []);
+      setVendedores(catalogoRes.data?.vendedores || []);
+      setParesDisponibles(catalogoRes.data?.paresDisponibles || []);
+      setError('');
+    } catch (e) {
+      console.error('Error cargando ventas:', e);
+      setError('Error de conexión o de servidor al cargar ventas.');
+    } finally {
+      setCargando(false);
+      console.log("Finalizado cargarTodo.");
+    }
+  }
+
+  async function cargarCatalogo(sucursal) {
+    try {
+      const isVendedor = usuario?.rol === 'VENDEDOR' || usuario?.rol?.includes('VENDEDOR');
+      const vId = isVendedor ? usuario.id : filtroVendedor;
+      const catalogoRes = await api.get(`/ventas/catalogo?sucursal=${sucursal}${vId ? `&vendedor_id=${vId}` : ''}`);
+      setClientes(catalogoRes.data?.clientes || []);
+      setLocales(catalogoRes.data?.locales || []);
+      setVendedores(catalogoRes.data?.vendedores || []);
+      setParesDisponibles(catalogoRes.data?.paresDisponibles || []);
+    } catch (e) {
+      console.error('Error cargando catalogo:', e);
+    }
+  }
+
   useEffect(() => {
     cargarTodo();
-  }, []);
+  }, [filtroVendedor]);
 
   useEffect(() => {
-    if (!mostrarModal) {
-      return;
-    }
-
+    if (!mostrarModal) return;
     cargarCatalogo(form.sucursal || 'CABECERA');
   }, [form.sucursal, mostrarModal]);
 
   const opcionesPorClave = useMemo(() => {
-    return paresDisponibles.reduce((acc, item) => {
+    return (paresDisponibles || []).reduce((acc, item) => {
       acc[item.key] = item;
       return acc;
     }, {});
   }, [paresDisponibles]);
 
-  const totalVenta = form.items.reduce((acc, item) => {
+  const totalVenta = (form?.items || []).reduce((acc, item) => {
     const cantidad = Number(item.cantidad) || 0;
     const precio = Number(item.precio_unitario) || 0;
     return acc + (cantidad * precio);
   }, 0);
 
-  const cargarTodo = async () => {
-    setCargando(true);
-    try {
-      const [ventasRes, catalogoRes] = await Promise.all([
-        api.get('/ventas'),
-        api.get(`/ventas/catalogo?sucursal=${form.sucursal || 'CABECERA'}`),
-      ]);
+  const ventasFiltradas = useMemo(() => {
+    return (ventas || []).filter((venta) => {
+      const matchesBusqueda = String(venta.cliente || '').toLowerCase().includes(busqueda.toLowerCase());
+      const matchesTipo = filtroTipo === 'TODOS' || venta.tipoCliente === filtroTipo;
 
-      setVentas(ventasRes.data);
-      setClientes(catalogoRes.data.clientes || []);
-      setLocales(catalogoRes.data.locales || []);
-      setParesDisponibles(catalogoRes.data.paresDisponibles || []);
-      setError('');
-    } catch (e) {
-      console.error('Error cargando ventas:', e);
-      setError('No se pudo cargar la seccion de ventas.');
-    } finally {
-      setCargando(false);
-    }
-  };
+      let matchesFecha = true;
+      if (!venta.fechaVenta) return matchesBusqueda && matchesTipo;
 
-  const cargarCatalogo = async (sucursal) => {
-    try {
-      const catalogoRes = await api.get(`/ventas/catalogo?sucursal=${sucursal}`);
-      setClientes(catalogoRes.data.clientes || []);
-      setLocales(catalogoRes.data.locales || []);
-      setParesDisponibles(catalogoRes.data.paresDisponibles || []);
-    } catch (e) {
-      console.error('Error cargando catalogo:', e);
-      setError('No se pudo actualizar el catalogo de stock.');
-    }
-  };
+      const fechaV = new Date(venta.fechaVenta);
+      const hoy = new Date();
+
+      if (rangoFecha === 'SEMANA') {
+        const inicioSemana = new Date(hoy);
+        const day = hoy.getDay();
+        const diff = hoy.getDate() - day + (day === 0 ? -6 : 1); // Lunes
+        inicioSemana.setDate(diff);
+        inicioSemana.setHours(0, 0, 0, 0);
+        matchesFecha = fechaV >= inicioSemana;
+      } else if (rangoFecha === 'MES') {
+        const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 0, 0, 0);
+        matchesFecha = fechaV >= inicioMes;
+      } else if (rangoFecha === 'PERSONALIZADO') {
+        if (fechaDesde) {
+          const [y, m, d] = fechaDesde.split('-').map(Number);
+          const start = new Date(y, m - 1, d, 0, 0, 0);
+          matchesFecha = matchesFecha && fechaV >= start;
+        }
+        if (fechaHasta) {
+          const [y, m, d] = fechaHasta.split('-').map(Number);
+          const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+          matchesFecha = matchesFecha && fechaV <= end;
+        }
+      }
+
+      return matchesBusqueda && matchesTipo && matchesFecha;
+    });
+  }, [ventas, busqueda, filtroTipo, rangoFecha, fechaDesde, fechaHasta]);
+
+  const totalParesFiltrados = (ventasFiltradas || []).reduce((acc, venta) => acc + (venta.totalPares || 0), 0);
+  const totalVendidoFiltrado = (ventasFiltradas || []).reduce((acc, venta) => acc + (venta.total || 0), 0);
 
   const abrirNuevaVenta = () => {
     setForm({
@@ -221,6 +282,7 @@ export default function Ventas({ usuario }) {
         local_id: form.canal_venta === 'LOCAL' ? Number(form.local_id) : null,
         sucursal: form.sucursal,
         metodo_pago: form.metodo_pago,
+        notas: form.notas,
         items,
       });
 
@@ -238,46 +300,139 @@ export default function Ventas({ usuario }) {
   const ventasLocales = ventas.filter((venta) => venta.canalVenta === 'LOCAL').length;
 
   return (
-    <div className="fade-in" style={{ padding: '20px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h2 style={{ color: '#582e2e', margin: 0 }}>Ventas</h2>
+          <h2 style={{ color: '#582e2e', margin: 0 }}>Gestión de Ventas</h2>
           <p style={{ color: '#888', margin: '5px 0 0 0' }}>
-            Registra ventas ligadas a cliente, canal, local y stock disponible.
+            Monitorea, filtra y registra todas las operaciones comerciales.
           </p>
         </div>
-        <button onClick={abrirNuevaVenta} style={btnPrimario}>+ Nueva Venta</button>
+        <button onClick={abrirNuevaVenta} style={btnPrimario}>+ Registrar Nueva Venta</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '15px', marginBottom: '20px' }}>
-        <KpiCard label="Ventas registradas" value={ventas.length} color="#582e2e" />
-        <KpiCard label="Pares vendidos" value={totalParesVendidos} color="#1565c0" />
-        <KpiCard label="Total vendido" value={`$${formatoNumero(totalVendido)}`} color="#2e7d32" subtitle={`${ventasLocales} en local`} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '15px', marginBottom: '25px' }}>
+        <KpiCard label="Ventas en vista" value={ventasFiltradas.length} color="#582e2e" />
+        <KpiCard label="Pares filtrados" value={totalParesFiltrados} color="#1565c0" />
+        <KpiCard label="Total en vista" value={`$${formatoNumero(totalVendidoFiltrado)}`} color="#2e7d32" subtitle={`De un histórico de $${formatoNumero(totalVendido)}`} />
+      </div>
+
+      <div className="content-card" style={{ marginBottom: '20px', padding: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1', minWidth: '250px' }}>
+            <label style={labelStyle}>Buscar cliente</label>
+            <input
+              type="text"
+              style={inputStyle}
+              placeholder="Nombre del cliente..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          <div style={{ width: '180px' }}>
+            <label style={labelStyle}>Tipo cliente</label>
+            <select style={selectStyle} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+              <option value="TODOS">Todos los tipos</option>
+              <option value="DETAL">Detal</option>
+              <option value="MAYORISTA">Al por mayor</option>
+            </select>
+          </div>
+
+          <div style={{ width: '200px' }}>
+            <label style={labelStyle}>Rango de fecha</label>
+            <select style={selectStyle} value={rangoFecha} onChange={(e) => setRangoFecha(e.target.value)}>
+              <option value="TODOS">Histórico completo</option>
+              <option value="SEMANA">Esta semana</option>
+              <option value="MES">Este mes</option>
+              <option value="PERSONALIZADO">Personalizado...</option>
+            </select>
+          </div>
+
+          {rangoFecha === 'PERSONALIZADO' && (
+            <>
+              <div style={{ width: '160px' }}>
+                <label style={labelStyle}>Desde</label>
+                <input type="date" style={inputStyle} value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+              </div>
+              <div style={{ width: '160px' }}>
+                <label style={labelStyle}>Hasta</label>
+                <input type="date" style={inputStyle} value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+              </div>
+            </>
+          )}
+
+          {usuario?.rol === 'ADMIN' && (
+            <div style={{ width: '200px' }}>
+              <label style={labelStyle}>Vendedor</label>
+              <select 
+                style={selectStyle} 
+                value={filtroVendedor} 
+                onChange={(e) => setFiltroVendedor(e.target.value)}
+              >
+                <option value="">Todos los vendedores</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.id}>{v.nombre} {v.apellido}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <button
+            style={{ ...btnSecundario, height: '42px', padding: '0 20px' }}
+            onClick={() => {
+              setBusqueda('');
+              setFiltroTipo('TODOS');
+              setRangoFecha('TODOS');
+              setFechaDesde('');
+              setFechaHasta('');
+              setFiltroVendedor('');
+            }}
+          >
+            Limpiar
+          </button>
+        </div>
       </div>
 
       {error && !mostrarModal && <div style={errorBox}>{error}</div>}
       {cargando && <LoadingState mensaje="Cargando ventas..." />}
 
       <div className="content-card" style={{ overflowX: 'auto' }}>
-        <table className="modern-table" style={{ width: '100%', minWidth: '1100px' }}>
+        <table className="modern-table" style={{ width: '100%', minWidth: '1200px' }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left' }}>Fecha</th>
               <th>Cliente</th>
+              <th>Tipo</th>
               <th>Canal</th>
               <th>Pago</th>
               <th>Pares</th>
               <th>Total</th>
-              <th style={{ textAlign: 'left' }}>Detalle</th>
+              <th style={{ textAlign: 'left' }}>Detalle/Nota</th>
+              <th style={{ textAlign: 'right' }}>Acción</th>
             </tr>
           </thead>
           <tbody>
-            {!cargando && ventas.map((venta) => (
+            {!cargando && ventasFiltradas.map((venta) => (
               <tr key={venta.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={{ padding: '12px 16px', color: '#555', fontSize: '0.88rem' }}>
                   {venta.fechaVenta ? new Date(venta.fechaVenta).toLocaleString() : '-'}
                 </td>
                 <td style={{ fontWeight: 'bold', color: '#333' }}>{venta.cliente || '-'}</td>
+                <td style={{ textAlign: 'center', minWidth: '120px' }}>
+                  <span style={{
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    background: (venta.tipoCliente === 'MAYORISTA' || venta.tipoCliente === 'MAYOR') ? '#e0f2f1' : '#f3e5f5',
+                    color: (venta.tipoCliente === 'MAYORISTA' || venta.tipoCliente === 'MAYOR') ? '#00695c' : '#7b1fa2',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block'
+                  }}>
+                    {venta.tipoCliente}
+                  </span>
+                </td>
                 <td style={{ color: '#555', fontSize: '0.9rem' }}>
                   <strong>{CANALES[venta.canalVenta]?.label || venta.canalVenta}</strong>
                   {venta.local && (
@@ -290,25 +445,24 @@ export default function Ventas({ usuario }) {
                 <td style={{ color: '#555', fontSize: '0.9rem' }}>{venta.metodoPago}</td>
                 <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#582e2e' }}>{venta.totalPares}</td>
                 <td style={{ fontWeight: 'bold', color: '#2e7d32' }}>${formatoNumero(venta.total || 0)}</td>
-                <td style={{ fontSize: '0.86rem', color: '#555', minWidth: '320px' }}>
-                  {(venta.items || []).map((item) => (
-                    <div key={item.id} style={{ marginBottom: '6px' }}>
-                      <strong>{item.referencia}</strong> {item.color} | {item.numeroOrden} | T{item.talla} x {item.cantidad}
-                    </div>
-                  ))}
+                <td style={{ padding: '12px 16px', color: '#666', fontSize: '0.88rem', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {venta.notas || <span style={{ color: '#ccc' }}>Sin notas</span>}
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  <button onClick={() => setVentaSeleccionada(venta)} style={btnVerDetalle}>Ver pares</button>
                 </td>
               </tr>
             ))}
-            {!cargando && ventas.length === 0 && (
+            {!cargando && ventasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-                  Aun no hay ventas registradas.
+                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                  No se encontraron ventas con los filtros aplicados.
                 </td>
               </tr>
             )}
             {cargando && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                   Cargando ventas...
                 </td>
               </tr>
@@ -363,6 +517,16 @@ export default function Ventas({ usuario }) {
                     <option key={metodo} value={metodo}>{metodo}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ gridColumn: '1 / span 4' }}>
+                <label style={labelStyle}>Mensaje adicional (Notas)</label>
+                <textarea
+                  style={{ ...inputStyle, height: '80px', resize: 'none' }}
+                  placeholder="Escribe aquí cualquier observación sobre esta venta..."
+                  value={form.notas}
+                  onChange={(e) => setField('notas', e.target.value)}
+                />
               </div>
 
               {form.canal_venta === 'LOCAL' && (
@@ -463,6 +627,54 @@ export default function Ventas({ usuario }) {
           </div>
         </div>
       )}
+
+      {ventaSeleccionada && (
+        <div style={overlay} onClick={() => setVentaSeleccionada(null)}>
+          <div style={{ ...modal, width: '600px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#582e2e' }}>Pares Vendidos</h3>
+              <button onClick={() => setVentaSeleccionada(null)} style={btnCerrar}>x</button>
+            </div>
+
+            <div style={{ background: '#fcfcfc', borderRadius: '14px', padding: '20px', border: '1px solid #eee' }}>
+              <div style={{ marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px dashed #ddd' }}>
+                <div style={{ fontSize: '0.9rem', color: '#888' }}>Cliente</div>
+                <div style={{ fontWeight: 'bold', color: '#333' }}>{ventaSeleccionada.cliente}</div>
+              </div>
+
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {(ventaSeleccionada.items || []).map((item) => (
+                  <div key={item.id} style={{ ...lineaVenta, background: 'white' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{item.referencia}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#8d6e63' }}>{item.color}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                      <div style={tagTalla}>Talla {item.talla}</div>
+                      <div style={{ ...tagCantidad, padding: '4px 10px', fontSize: '0.9rem' }}>{item.cantidad} par(es)</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: '20px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.2rem', color: '#2e7d32' }}>
+                Total: ${formatoNumero(ventaSeleccionada.total)}
+              </div>
+            </div>
+
+            {ventaSeleccionada.notas && (
+              <div style={{ marginTop: '20px', padding: '15px', background: '#fff9f5', borderRadius: '12px', border: '1px solid #ffe8d6' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8d6e63', marginBottom: '5px', fontWeight: 'bold' }}>NOTA DEL VENDEDOR:</div>
+                <div style={{ fontSize: '0.9rem', color: '#582e2e', fontStyle: 'italic' }}>"{ventaSeleccionada.notas}"</div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '25px' }}>
+              <button onClick={() => setVentaSeleccionada(null)} style={btnPrimario}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -498,3 +710,35 @@ const btnEliminar = { background: '#fff1f2', color: '#b91c1c', border: '1px soli
 const lineaVenta = { display: 'flex', gap: '12px', alignItems: 'flex-end', background: '#fcfcfc', border: '1px solid #eee', borderRadius: '14px', padding: '14px' };
 const subtotalBox = { padding: '10px 12px', borderRadius: '10px', background: '#f6f6f6', border: '1px solid #e3e3e3', fontWeight: 'bold', color: '#333', minHeight: '42px', display: 'flex', alignItems: 'center' };
 const errorBox = { background: '#fff1f2', color: '#b91c1c', border: '1px solid #fecdd3', borderRadius: '12px', padding: '12px 14px', fontWeight: '600', marginBottom: '16px' };
+const btnVerDetalle = { background: '#f8f4f1', color: '#582e2e', border: '1px solid #eaddd7', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' };
+
+const itemChip = {
+  background: '#f8f4f1',
+  border: '1px solid #eaddd7',
+  borderRadius: '8px',
+  padding: '5px 10px',
+  fontSize: '0.82rem',
+  color: '#582e2e',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+};
+
+const tagTalla = {
+  background: '#eaddd7',
+  color: '#582e2e',
+  fontWeight: 'bold',
+  padding: '1px 6px',
+  borderRadius: '4px',
+  fontSize: '0.75rem'
+};
+
+const tagCantidad = {
+  background: '#582e2e',
+  color: 'white',
+  fontWeight: 'bold',
+  padding: '1px 6px',
+  borderRadius: '4px',
+  fontSize: '0.75rem'
+};

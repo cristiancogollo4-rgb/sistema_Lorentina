@@ -18,6 +18,7 @@ class Venta extends Model
         'fecha_venta',
         'total',
         'metodo_pago',
+        'notas',
     ];
 
     protected function casts(): array

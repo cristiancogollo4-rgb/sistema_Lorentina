@@ -95,153 +95,169 @@ class ProductionController extends Controller
 
     public function tablero(Request $request): JsonResponse
     {
-        $vendedorId = $request->query('vendedor_id');
-        $rango = $request->query('rango', 'produccion');
-        $fechaInicio = $request->query('inicio');
-        $fechaFin = $request->query('fin');
-        
-        $queryOrdenes = OrdenProduccion::query()
-            ->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
-        $qCreadas = OrdenProduccion::query();
-        $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
+        try {
+            $vendedorId = $request->query('vendedor_id');
+            $rango = $request->query('rango', 'produccion');
+            $fechaInicio = $request->query('inicio');
+            $fechaFin = $request->query('fin');
+            
+            $queryOrdenes = OrdenProduccion::query()
+                ->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
+            $qCreadas = OrdenProduccion::query();
+            $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
 
-        if ($rango === 'produccion') {
-            // Sin filtro de fechas para órdenes activas:
-            // mostrar desde la orden en producción más antigua hasta la más reciente.
-        } elseif ($rango === 'semana') {
-            $inicio = now()->startOfWeek();
-            $queryOrdenes->where('fecha_inicio', '>=', $inicio);
-            $qCreadas->where('fecha_inicio', '>=', $inicio);
-            $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
-        } elseif ($rango === 'mes') {
-            $inicio = now()->startOfMonth();
-            $queryOrdenes->where('fecha_inicio', '>=', $inicio);
-            $qCreadas->where('fecha_inicio', '>=', $inicio);
-            $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
-        } elseif ($rango === 'custom' && $fechaInicio && $fechaFin) {
-            $dInicio = \Carbon\Carbon::parse($fechaInicio)->startOfDay();
-            $dFin = \Carbon\Carbon::parse($fechaFin)->endOfDay();
-            $queryOrdenes->whereBetween('fecha_inicio', [$dInicio, $dFin]);
-            $qCreadas->whereBetween('fecha_inicio', [$dInicio, $dFin]);
-            $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
+            if ($rango === 'semana') {
+                $inicio = now()->startOfWeek();
+                $queryOrdenes->where('fecha_inicio', '>=', $inicio);
+                $qCreadas->where('fecha_inicio', '>=', $inicio);
+                $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
+            } elseif ($rango === 'mes') {
+                $inicio = now()->startOfMonth();
+                $queryOrdenes->where('fecha_inicio', '>=', $inicio);
+                $qCreadas->where('fecha_inicio', '>=', $inicio);
+                $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
+            } elseif ($rango === 'custom' && $fechaInicio && $fechaFin) {
+                $dInicio = \Carbon\Carbon::parse($fechaInicio)->startOfDay();
+                $dFin = \Carbon\Carbon::parse($fechaFin)->endOfDay();
+                $queryOrdenes->whereBetween('fecha_inicio', [$dInicio, $dFin]);
+                $qCreadas->whereBetween('fecha_inicio', [$dInicio, $dFin]);
+                $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
+            }
+
+            $ordenes = $queryOrdenes->orderByDesc('id')
+                ->get()
+                ->map(fn (OrdenProduccion $orden) => $this->formatOrden($orden));
+
+            $empleados = User::query()
+                ->where('rol', '!=', 'ADMIN')
+                ->where('activo', true)
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'apellido', 'rol']);
+
+            $paresFabricar = (int) $qCreadas->sum('total_pares');
+            $paresStock = (int) $qTerminadas->sum('total_pares');
+            $inicioSemana = now()->startOfWeek();
+            $inicioMes = now()->startOfMonth();
+            
+            $ventasSemanaQuery = Venta::query()->where('fecha_venta', '>=', $inicioSemana);
+            $ventasMesQuery = Venta::query()->where('fecha_venta', '>=', $inicioMes);
+            
+            if ($vendedorId) {
+                $ventasSemanaQuery->where('vendedor_id', (int) $vendedorId);
+                $ventasMesQuery->where('vendedor_id', (int) $vendedorId);
+            }
+
+            $ventasSemana = (float) $ventasSemanaQuery->sum('total');
+            $ventasMes = (float) $ventasMesQuery->sum('total');
+
+            $ventasVendedorBase = Venta::query();
+            if ($vendedorId) {
+                $ventasVendedorBase->where('vendedor_id', (int) $vendedorId);
+            }
+
+            $inicioSemanaAnterior = now()->startOfWeek()->subWeek();
+            $finSemanaAnterior = now()->startOfWeek();
+
+            // Optimización: Agrupar métricas de ventas en menos consultas
+            $metricasVentas = (clone $ventasVendedorBase)
+                ->selectRaw("
+                    SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_semana,
+                    SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_mes,
+                    SUM(CASE WHEN fecha_venta >= ? AND fecha_venta < ? THEN total ELSE 0 END) as ventas_semana_anterior,
+                    COUNT(CASE WHEN canal_venta = 'ONLINE' THEN 1 END) as ventas_sin_despachar,
+                    COUNT(DISTINCT CASE WHEN canal_venta = 'ONLINE' THEN cliente_id END) as clientes_apartados
+                ", [$inicioSemana, $inicioMes, $inicioSemanaAnterior, $finSemanaAnterior])
+                ->first();
+
+            \Log::info("Métricas de Ventas detectadas:", [
+                'vendedor_id' => $vendedorId,
+                'semana' => $metricasVentas->ventas_semana ?? 0,
+                'mes' => $metricasVentas->ventas_mes ?? 0
+            ]);
+
+            $ventasSemanaVendedor = (float) ($metricasVentas->ventas_semana ?? 0);
+            $ventasMesVendedor = (float) ($metricasVentas->ventas_mes ?? 0);
+            $ventasSemanaAnterior = (float) ($metricasVentas->ventas_semana_anterior ?? 0);
+            $clientesConApartados = (int) ($metricasVentas->clientes_apartados ?? 0);
+            $ventasSinDespachar = (int) ($metricasVentas->ventas_sin_despachar ?? 0);
+
+            $caidaVentasSemana = $ventasSemanaAnterior > 0
+                ? (($ventasSemanaVendedor - $ventasSemanaAnterior) / $ventasSemanaAnterior) * 100
+                : 0;
+
+            // Top Productos con Join optimizado
+            $topProductos = [];
+            try {
+                $topProductos = DB::table('detalle_ventas')
+                    ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
+                    ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
+                    ->select('detalle_ventas.referencia', 'detalle_ventas.color', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
+                    ->groupBy('detalle_ventas.referencia', 'detalle_ventas.color')
+                    ->orderByDesc('total_vendido')
+                    ->limit(5)
+                    ->get();
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en topProductos: " . $e->getMessage());
+            }
+
+            // Baja rotación (Consulta simple a productos)
+            $bajaRotacionAltoMargen = [];
+            try {
+                $bajaRotacionAltoMargen = DB::table('productos')
+                    ->select('referencia', 'color', 'precio_detal', 'costo_produccion')
+                    ->whereRaw('(precio_detal - costo_produccion) > 0')
+                    ->orderByRaw('(precio_detal - costo_produccion) DESC')
+                    ->limit(5)
+                    ->get();
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en bajaRotacion: " . $e->getMessage());
+            }
+
+            // Alerta cliente importante (Una sola consulta)
+            $alertaClienteImportante = null;
+            try {
+                $clienteTop = DB::table('ventas')
+                    ->join('clientes', 'ventas.cliente_id', '=', 'clientes.id')
+                    ->select('ventas.cliente_id', 'clientes.nombre', DB::raw('SUM(ventas.total) as total_acumulado'), DB::raw('MAX(ventas.fecha_venta) as ultima_fecha'))
+                    ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
+                    ->groupBy('ventas.cliente_id', 'clientes.nombre')
+                    ->orderByDesc('total_acumulado')
+                    ->first();
+
+                if ($clienteTop) {
+                    $alertaClienteImportante = [
+                        'clienteId' => $clienteTop->cliente_id,
+                        'cliente' => $clienteTop->nombre,
+                        'diasSinCompra' => $clienteTop->ultima_fecha ? now()->diffInDays(\Carbon\Carbon::parse($clienteTop->ultima_fecha)) : null,
+                    ];
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en alertaCliente: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'ordenes' => $ordenes,
+                'empleados' => $empleados,
+                'vendedores' => User::where('rol', 'VENDEDOR')->where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']),
+                'stats' => [
+                    'paresFabricar' => $paresFabricar,
+                    'paresStock' => $paresStock,
+                    'ventasSemana' => $ventasSemana,
+                    'ventasMes' => $ventasMes,
+                    'ventasSemanaVendedor' => $ventasSemanaVendedor,
+                    'ventasMesVendedor' => $ventasMesVendedor,
+                    'clientesConApartados' => $clientesConApartados,
+                    'ventasSinDespachar' => $ventasSinDespachar,
+                    'caidaVentasSemana' => $caidaVentasSemana,
+                    'topProductos' => $topProductos,
+                    'bajaRotacionAltoMargen' => $bajaRotacionAltoMargen,
+                    'clienteImportanteSinCompra' => $alertaClienteImportante,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error crítico en tablero: " . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $ordenes = $queryOrdenes->orderByDesc('id')
-            ->get()
-            ->map(fn (OrdenProduccion $orden) => $this->formatOrden($orden));
-
-        $empleados = User::query()
-            ->where('rol', '!=', 'ADMIN')
-            ->where('activo', true)
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'apellido', 'rol']);
-
-        $paresFabricar = (int) $qCreadas->sum('total_pares');
-        $paresStock = (int) $qTerminadas->sum('total_pares');
-        $inicioSemana = now()->startOfWeek();
-        $inicioMes = now()->startOfMonth();
-        $ventasSemana = (float) Venta::query()->where('fecha_venta', '>=', $inicioSemana)->sum('total');
-        $ventasMes = (float) Venta::query()->where('fecha_venta', '>=', $inicioMes)->sum('total');
-
-        $ventasVendedorBase = Venta::query();
-        if ($vendedorId) {
-            $ventasVendedorBase->where('vendedor_id', (int) $vendedorId);
-        }
-
-        $ventasSemanaVendedor = (float) (clone $ventasVendedorBase)
-            ->where('fecha_venta', '>=', $inicioSemana)
-            ->sum('total');
-        $ventasMesVendedor = (float) (clone $ventasVendedorBase)
-            ->where('fecha_venta', '>=', $inicioMes)
-            ->sum('total');
-
-        $inicioSemanaAnterior = now()->startOfWeek()->subWeek();
-        $finSemanaAnterior = now()->startOfWeek();
-        $ventasSemanaAnterior = (float) (clone $ventasVendedorBase)
-            ->where('fecha_venta', '>=', $inicioSemanaAnterior)
-            ->where('fecha_venta', '<', $finSemanaAnterior)
-            ->sum('total');
-        $caidaVentasSemana = $ventasSemanaAnterior > 0
-            ? (($ventasSemanaVendedor - $ventasSemanaAnterior) / $ventasSemanaAnterior) * 100
-            : 0;
-
-        $clientesConApartados = (clone $ventasVendedorBase)
-            ->where('canal_venta', 'ONLINE')
-            ->distinct('cliente_id')
-            ->count('cliente_id');
-        $ventasSinDespachar = (clone $ventasVendedorBase)
-            ->where('canal_venta', 'ONLINE')
-            ->count();
-
-        $topProductos = DetalleVenta::query()
-            ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
-            ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
-            ->select('detalle_ventas.referencia', 'detalle_ventas.color', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
-            ->groupBy('detalle_ventas.referencia', 'detalle_ventas.color')
-            ->orderByDesc('total_vendido')
-            ->limit(5)
-            ->get();
-
-        $bajaRotacionAltoMargen = Producto::query()
-            ->leftJoin('detalle_ventas', 'productos.id', '=', 'detalle_ventas.producto_id')
-            ->leftJoin('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
-            ->when($vendedorId, fn ($q) => $q->where(function ($sub) use ($vendedorId) {
-                $sub->whereNull('ventas.id')->orWhere('ventas.vendedor_id', (int) $vendedorId);
-            }))
-            ->select(
-                'productos.referencia',
-                'productos.color',
-                'productos.precio_detal',
-                'productos.costo_produccion',
-                DB::raw('COALESCE(SUM(detalle_ventas.cantidad), 0) as unidades_vendidas')
-            )
-            ->groupBy('productos.id', 'productos.referencia', 'productos.color', 'productos.precio_detal', 'productos.costo_produccion')
-            ->havingRaw('COALESCE(SUM(detalle_ventas.cantidad), 0) <= 5')
-            ->havingRaw('(productos.precio_detal - productos.costo_produccion) > 0')
-            ->orderByRaw('(productos.precio_detal - productos.costo_produccion) DESC')
-            ->limit(5)
-            ->get();
-
-        $clienteImportante = (clone $ventasVendedorBase)
-            ->select('cliente_id', DB::raw('SUM(total) as total_acumulado'))
-            ->groupBy('cliente_id')
-            ->orderByDesc('total_acumulado')
-            ->first();
-        $alertaClienteImportante = null;
-        if ($clienteImportante && $clienteImportante->cliente_id) {
-            $ultimaCompra = Venta::query()
-                ->where('cliente_id', $clienteImportante->cliente_id)
-                ->when($vendedorId, fn ($q) => $q->where('vendedor_id', (int) $vendedorId))
-                ->max('fecha_venta');
-
-            $cliente = DB::table('clientes')->where('id', $clienteImportante->cliente_id)->first(['id', 'nombre']);
-            $diasSinCompra = $ultimaCompra ? now()->diffInDays($ultimaCompra) : null;
-
-            $alertaClienteImportante = [
-                'clienteId' => $cliente->id ?? null,
-                'cliente' => $cliente->nombre ?? 'Cliente sin nombre',
-                'diasSinCompra' => $diasSinCompra,
-            ];
-        }
-
-        return response()->json([
-            'ordenes' => $ordenes,
-            'empleados' => $empleados,
-            'stats' => [
-                'paresFabricar' => $paresFabricar,
-                'paresStock' => $paresStock,
-                'ventasSemana' => $ventasSemana,
-                'ventasMes' => $ventasMes,
-                'ventasSemanaVendedor' => $ventasSemanaVendedor,
-                'ventasMesVendedor' => $ventasMesVendedor,
-                'clientesConApartados' => $clientesConApartados,
-                'ventasSinDespachar' => $ventasSinDespachar,
-                'caidaVentasSemana' => $caidaVentasSemana,
-                'topProductos' => $topProductos,
-                'bajaRotacionAltoMargen' => $bajaRotacionAltoMargen,
-                'clienteImportanteSinCompra' => $alertaClienteImportante,
-            ]
-        ]);
     }
 
     public function asignar(Request $request): JsonResponse
