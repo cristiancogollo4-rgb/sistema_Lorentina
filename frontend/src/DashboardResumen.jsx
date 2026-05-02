@@ -5,6 +5,8 @@ function DashboardResumen({ usuario }) {
   const [stats, setStats] = useState({
     paresFabricar: 0,
     paresStock: 0,
+    ventasSemana: 0,
+    ventasMes: 0,
     ordenesActivas: 0,
     empleadosActivos: 0
   });
@@ -16,8 +18,9 @@ function DashboardResumen({ usuario }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Usamos el tablero con rango mensual para sacar las estadísticas base
-    api.get('/produccion/tablero?rango=mes')
+    // Órdenes activas: desde la más antigua en producción hasta la más reciente.
+    // Ventas: métricas semanales y mensuales desde backend.
+    api.get('/produccion/tablero?rango=produccion')
       .then(res => {
         const ordenes = res.data.ordenes || [];
         
@@ -35,6 +38,8 @@ function DashboardResumen({ usuario }) {
         setStats({
           paresFabricar: res.data.stats?.paresFabricar || 0,
           paresStock: res.data.stats?.paresStock || 0,
+          ventasSemana: res.data.stats?.ventasSemana || 0,
+          ventasMes: res.data.stats?.ventasMes || 0,
           ordenesActivas: ordenes.length,
           empleadosActivos: res.data.empleados?.length || 0
         });
@@ -71,7 +76,8 @@ function DashboardResumen({ usuario }) {
         <KpiCard icon="📦" titulo="Pares a Fabricar (Mes)" valor={stats.paresFabricar} color="#3b82f6" />
         <KpiCard icon="✅" titulo="Pares Entrados a Stock" valor={stats.paresStock} color="#22c55e" />
         <KpiCard icon="📋" titulo="Órdenes Activas" valor={stats.ordenesActivas} color="#f59e0b" />
-        <KpiCard icon="💰" titulo="Ventas del Mes" valor={"$0"} color="#8b5cf6" />
+        <KpiCard icon="💰" titulo="Ventas de la Semana" valor={`$${formatoNumero(stats.ventasSemana || 0)}`} color="#8b5cf6" />
+        <KpiCard icon="🗓️" titulo="Ventas del Mes" valor={`$${formatoNumero(stats.ventasMes || 0)}`} color="#6366f1" />
       </div>
 
       {/* SECCIÓN INFERIOR: DISTRIBUCIÓN Y ALERTAS */}
@@ -134,6 +140,11 @@ function KpiCard({ icon, titulo, valor, color }) {
       </div>
     </div>
   );
+}
+
+function formatoNumero(valor) {
+  const numero = Number(valor || 0);
+  return numero.toLocaleString('es-CO');
 }
 
 function ProgressBar({ label, valor, total, color }) {

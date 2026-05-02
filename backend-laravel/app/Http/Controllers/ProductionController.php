@@ -8,6 +8,7 @@ use App\Models\OrdenProduccion;
 use App\Models\Producto;
 use App\Models\TarifaCategoria;
 use App\Models\User;
+use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,7 +94,7 @@ class ProductionController extends Controller
 
     public function tablero(Request $request): JsonResponse
     {
-        $rango = $request->query('rango', 'custom');
+        $rango = $request->query('rango', 'produccion');
         $fechaInicio = $request->query('inicio');
         $fechaFin = $request->query('fin');
         
@@ -101,7 +102,10 @@ class ProductionController extends Controller
         $qCreadas = OrdenProduccion::query();
         $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
 
-        if ($rango === 'semana') {
+        if ($rango === 'produccion') {
+            // Sin filtro de fechas para órdenes activas:
+            // mostrar desde la orden en producción más antigua hasta la más reciente.
+        } elseif ($rango === 'semana') {
             $inicio = now()->startOfWeek();
             $queryOrdenes->where('fecha_inicio', '>=', $inicio);
             $qCreadas->where('fecha_inicio', '>=', $inicio);
@@ -131,13 +135,19 @@ class ProductionController extends Controller
 
         $paresFabricar = (int) $qCreadas->sum('total_pares');
         $paresStock = (int) $qTerminadas->sum('total_pares');
+        $inicioSemana = now()->startOfWeek();
+        $inicioMes = now()->startOfMonth();
+        $ventasSemana = (float) Venta::query()->where('fecha_venta', '>=', $inicioSemana)->sum('total');
+        $ventasMes = (float) Venta::query()->where('fecha_venta', '>=', $inicioMes)->sum('total');
 
         return response()->json([
             'ordenes' => $ordenes,
             'empleados' => $empleados,
             'stats' => [
                 'paresFabricar' => $paresFabricar,
-                'paresStock' => $paresStock
+                'paresStock' => $paresStock,
+                'ventasSemana' => $ventasSemana,
+                'ventasMes' => $ventasMes,
             ]
         ]);
     }
