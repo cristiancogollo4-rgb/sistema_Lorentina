@@ -17,11 +17,12 @@ function DashboardResumen({ usuario }) {
   });
 
   const [loading, setLoading] = useState(true);
+  const esVendedor = usuario?.rol === 'VENDEDOR';
 
   useEffect(() => {
     // Órdenes activas: desde la más antigua en producción hasta la más reciente.
     // Ventas: métricas semanales y mensuales desde backend.
-    api.get('/produccion/tablero?rango=produccion')
+    api.get(`/produccion/tablero?rango=produccion${usuario?.rol === 'VENDEDOR' ? `&vendedor_id=${usuario.id}` : ''}`)
       .then(res => {
         const ordenes = res.data.ordenes || [];
         
@@ -74,20 +75,61 @@ function DashboardResumen({ usuario }) {
       </div>
 
       {/* KPI CARDS (Tarjetas de métricas) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-        <KpiCard icon="📦" titulo="Pares a Fabricar (Mes)" valor={stats.paresFabricar} color="#3b82f6" />
-        <KpiCard icon="✅" titulo="Pares Entrados a Stock" valor={stats.paresStock} color="#22c55e" />
-        <KpiCard icon="📋" titulo="Órdenes Activas" valor={stats.ordenesActivas} color="#f59e0b" />
-        <KpiCard icon="💰" titulo="Ventas de la Semana" valor={`$${formatoNumero(stats.ventasSemana || 0)}`} color="#8b5cf6" />
-        <KpiCard icon="🗓️" titulo="Ventas del Mes" valor={`$${formatoNumero(stats.ventasMes || 0)}`} color="#6366f1" />
-      </div>
+      {esVendedor ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+          <KpiCard icon="💰" titulo="Ventas esta semana" valor={`$${formatoNumero(stats.ventasSemanaVendedor || 0)}`} color="#8b5cf6" />
+          <KpiCard icon="🗓️" titulo="Ventas del mes" valor={`$${formatoNumero(stats.ventasMesVendedor || 0)}`} color="#6366f1" />
+          <KpiCard icon="🧾" titulo="Clientes con pedidos apartados" valor={stats.clientesConApartados || 0} color="#f59e0b" />
+          <KpiCard icon="🚚" titulo="Ventas sin pedidos despachados" valor={stats.ventasSinDespachar || 0} color="#ef4444" />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+          <KpiCard icon="📦" titulo="Pares a Fabricar (Mes)" valor={stats.paresFabricar} color="#3b82f6" />
+          <KpiCard icon="✅" titulo="Pares Entrados a Stock" valor={stats.paresStock} color="#22c55e" />
+          <KpiCard icon="📋" titulo="Órdenes Activas" valor={stats.ordenesActivas} color="#f59e0b" />
+          <KpiCard icon="💰" titulo="Ventas de la Semana" valor={`$${formatoNumero(stats.ventasSemana || 0)}`} color="#8b5cf6" />
+          <KpiCard icon="🗓️" titulo="Ventas del Mes" valor={`$${formatoNumero(stats.ventasMes || 0)}`} color="#6366f1" />
+        </div>
+      )}
 
       {/* SECCIÓN INFERIOR: DISTRIBUCIÓN Y ALERTAS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+        {esVendedor && (
+          <>
+            <div style={{ background: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>🔥 Productos más vendidos</h3>
+              {(stats.topProductos || []).map((producto, idx) => (
+                <p key={`${producto.referencia}-${producto.color}-${idx}`} style={{ margin: '8px 0', color: '#475569' }}>
+                  {producto.referencia} / {producto.color}: <b>{producto.total_vendido}</b> pares
+                </p>
+              ))}
+            </div>
+
+            <div style={{ background: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>📉 Baja rotación / alto margen</h3>
+              {(stats.bajaRotacionAltoMargen || []).map((producto, idx) => (
+                <p key={`${producto.referencia}-${producto.color}-${idx}`} style={{ margin: '8px 0', color: '#475569' }}>
+                  {producto.referencia} / {producto.color}: margen ${formatoNumero((producto.precio_detal || 0) - (producto.costo_produccion || 0))}
+                </p>
+              ))}
+            </div>
+          </>
+        )}
         
         {/* Gráfico de distribución (barras horizontales) */}
         <div style={{ background: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>📊 Cuellos de botella (Órdenes en curso)</h3>
+          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>{esVendedor ? '🚨 Alertas comerciales' : '📊 Cuellos de botella (Órdenes en curso)'}</h3>
+          {esVendedor ? (
+            <>
+              <p style={{ margin: '0 0 10px', color: '#475569' }}>
+                Cliente importante sin compra: <b>{stats.clienteImportanteSinCompra?.cliente || 'N/A'}</b> ({stats.clienteImportanteSinCompra?.diasSinCompra ?? '-'} días)
+              </p>
+              <p style={{ margin: 0, color: (stats.caidaVentasSemana || 0) < 0 ? '#dc2626' : '#16a34a' }}>
+                Caída de ventas vs semana anterior: <b>{Number(stats.caidaVentasSemana || 0).toFixed(1)}%</b>
+              </p>
+            </>
+          ) : (
+            <>
           
           <ProgressBar label="Corte" valor={distribucion.CORTE} total={stats.ordenesActivas} color="#f87171" />
           <ProgressBar label="Armado" valor={distribucion.ARMADO} total={stats.ordenesActivas} color="#fbbf24" />
@@ -95,7 +137,9 @@ function DashboardResumen({ usuario }) {
           <ProgressBar label="Soladura" valor={distribucion.SOLADURA} total={stats.ordenesActivas} color="#60a5fa" />
           <ProgressBar label="Emplantillado" valor={distribucion.EMPLANTILLADO} total={stats.ordenesActivas} color="#a78bfa" />
           
-          {stats.ordenesActivas === 0 && <p style={{ textAlign: 'center', color: '#999', marginTop: '20px' }}>No hay órdenes activas actualmente.</p>}
+              {stats.ordenesActivas === 0 && <p style={{ textAlign: 'center', color: '#999', marginTop: '20px' }}>No hay órdenes activas actualmente.</p>}
+            </>
+          )}
         </div>
 
         {/* Panel de alertas o accesos rápidos */}

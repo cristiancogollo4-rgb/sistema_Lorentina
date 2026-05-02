@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
+use App\Models\DetalleVenta;
 use App\Models\InventarioMovimiento;
 use App\Models\OrdenProduccion;
 use App\Models\Producto;
@@ -94,6 +95,7 @@ class ProductionController extends Controller
 
     public function tablero(Request $request): JsonResponse
     {
+        $vendedorId = $request->query('vendedor_id');
         $rango = $request->query('rango', 'produccion');
         $fechaInicio = $request->query('inicio');
         $fechaFin = $request->query('fin');
@@ -141,6 +143,87 @@ class ProductionController extends Controller
         $ventasSemana = (float) Venta::query()->where('fecha_venta', '>=', $inicioSemana)->sum('total');
         $ventasMes = (float) Venta::query()->where('fecha_venta', '>=', $inicioMes)->sum('total');
 
+        $ventasVendedorBase = Venta::query();
+        if ($vendedorId) {
+            $ventasVendedorBase->where('vendedor_id', (int) $vendedorId);
+        }
+
+        $ventasSemanaVendedor = (float) (clone $ventasVendedorBase)
+            ->where('fecha_venta', '>=', $inicioSemana)
+            ->sum('total');
+        $ventasMesVendedor = (float) (clone $ventasVendedorBase)
+            ->where('fecha_venta', '>=', $inicioMes)
+            ->sum('total');
+
+        $inicioSemanaAnterior = now()->startOfWeek()->subWeek();
+        $finSemanaAnterior = now()->startOfWeek();
+        $ventasSemanaAnterior = (float) (clone $ventasVendedorBase)
+            ->where('fecha_venta', '>=', $inicioSemanaAnterior)
+            ->where('fecha_venta', '<', $finSemanaAnterior)
+            ->sum('total');
+        $caidaVentasSemana = $ventasSemanaAnterior > 0
+            ? (($ventasSemanaVendedor - $ventasSemanaAnterior) / $ventasSemanaAnterior) * 100
+            : 0;
+
+        $clientesConApartados = (clone $ventasVendedorBase)
+            ->where('canal_venta', 'ONLINE')
+            ->distinct('cliente_id')
+            ->count('cliente_id');
+        $ventasSinDespachar = (clone $ventasVendedorBase)
+            ->where('canal_venta', 'ONLINE')
+            ->count();
+
+        $topProductos = DetalleVenta::query()
+            ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
+            ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
+            ->select('detalle_ventas.referencia', 'detalle_ventas.color', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
+            ->groupBy('detalle_ventas.referencia', 'detalle_ventas.color')
+            ->orderByDesc('total_vendido')
+            ->limit(5)
+            ->get();
+
+        $bajaRotacionAltoMargen = Producto::query()
+            ->leftJoin('detalle_ventas', 'productos.id', '=', 'detalle_ventas.producto_id')
+            ->leftJoin('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
+            ->when($vendedorId, fn ($q) => $q->where(function ($sub) use ($vendedorId) {
+                $sub->whereNull('ventas.id')->orWhere('ventas.vendedor_id', (int) $vendedorId);
+            }))
+            ->select(
+                'productos.referencia',
+                'productos.color',
+                'productos.precio_detal',
+                'productos.costo_produccion',
+                DB::raw('COALESCE(SUM(detalle_ventas.cantidad), 0) as unidades_vendidas')
+            )
+            ->groupBy('productos.id', 'productos.referencia', 'productos.color', 'productos.precio_detal', 'productos.costo_produccion')
+            ->havingRaw('COALESCE(SUM(detalle_ventas.cantidad), 0) <= 5')
+            ->havingRaw('(productos.precio_detal - productos.costo_produccion) > 0')
+            ->orderByRaw('(productos.precio_detal - productos.costo_produccion) DESC')
+            ->limit(5)
+            ->get();
+
+        $clienteImportante = (clone $ventasVendedorBase)
+            ->select('cliente_id', DB::raw('SUM(total) as total_acumulado'))
+            ->groupBy('cliente_id')
+            ->orderByDesc('total_acumulado')
+            ->first();
+        $alertaClienteImportante = null;
+        if ($clienteImportante && $clienteImportante->cliente_id) {
+            $ultimaCompra = Venta::query()
+                ->where('cliente_id', $clienteImportante->cliente_id)
+                ->when($vendedorId, fn ($q) => $q->where('vendedor_id', (int) $vendedorId))
+                ->max('fecha_venta');
+
+            $cliente = DB::table('clientes')->where('id', $clienteImportante->cliente_id)->first(['id', 'nombre']);
+            $diasSinCompra = $ultimaCompra ? now()->diffInDays($ultimaCompra) : null;
+
+            $alertaClienteImportante = [
+                'clienteId' => $cliente->id ?? null,
+                'cliente' => $cliente->nombre ?? 'Cliente sin nombre',
+                'diasSinCompra' => $diasSinCompra,
+            ];
+        }
+
         return response()->json([
             'ordenes' => $ordenes,
             'empleados' => $empleados,
@@ -149,6 +232,14 @@ class ProductionController extends Controller
                 'paresStock' => $paresStock,
                 'ventasSemana' => $ventasSemana,
                 'ventasMes' => $ventasMes,
+                'ventasSemanaVendedor' => $ventasSemanaVendedor,
+                'ventasMesVendedor' => $ventasMesVendedor,
+                'clientesConApartados' => $clientesConApartados,
+                'ventasSinDespachar' => $ventasSinDespachar,
+                'caidaVentasSemana' => $caidaVentasSemana,
+                'topProductos' => $topProductos,
+                'bajaRotacionAltoMargen' => $bajaRotacionAltoMargen,
+                'clienteImportanteSinCompra' => $alertaClienteImportante,
             ]
         ]);
     }
