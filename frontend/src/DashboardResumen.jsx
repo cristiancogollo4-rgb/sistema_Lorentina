@@ -144,20 +144,20 @@ function DashboardResumen({ usuario }) {
 
         {/* Panel de alertas o accesos rápidos */}
         <div style={{ background: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>⚡ Accesos Rápidos</h3>
+          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>⚡ {esVendedor ? 'Acciones Comerciales' : 'Accesos Rápidos'}</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <div className="quick-action-card">
-              <span style={{ fontSize: '1.5rem' }}>🔨</span>
+              <span style={{ fontSize: '1.5rem' }}>{esVendedor ? '📞' : '🔨'}</span>
               <div>
-                <h4 style={{ margin: 0, color: '#475569' }}>Lanzar Nueva Producción</h4>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>Crear orden para planta</p>
+                <h4 style={{ margin: 0, color: '#475569' }}>{esVendedor ? 'Contactar clientes clave' : 'Lanzar Nueva Producción'}</h4>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>{esVendedor ? 'Dar seguimiento a clientes sin compra reciente.' : 'Crear orden para planta'}</p>
               </div>
             </div>
             <div className="quick-action-card">
-              <span style={{ fontSize: '1.5rem' }}>💰</span>
+              <span style={{ fontSize: '1.5rem' }}>{esVendedor ? '🧾' : '💰'}</span>
               <div>
-                <h4 style={{ margin: 0, color: '#475569' }}>Pagar Nómina</h4>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>Ver destajos y pagos de la semana</p>
+                <h4 style={{ margin: 0, color: '#475569' }}>{esVendedor ? 'Gestionar pedidos apartados' : 'Pagar Nómina'}</h4>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>{esVendedor ? 'Priorizar ventas online pendientes por despacho.' : 'Ver destajos y pagos de la semana'}</p>
               </div>
             </div>
           </div>
