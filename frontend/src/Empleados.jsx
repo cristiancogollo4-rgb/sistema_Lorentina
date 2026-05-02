@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from './api';
+import LoadingState from './components/LoadingState';
 
 function Empleados() {
   const [usuarios, setUsuarios] = useState([]);
@@ -147,7 +148,7 @@ function Empleados() {
       </div>
 
       <div className="employee-table-container">
-        {loading && <p style={{textAlign: 'center', color: '#666', padding: '20px'}}>Cargando empleados...</p>}
+        {loading && <LoadingState mensaje="Cargando empleados..." />}
         {errorCarga && <p style={{textAlign: 'center', color: '#b00020', padding: '20px'}}>{errorCarga}</p>}
         
         <table className="modern-table">

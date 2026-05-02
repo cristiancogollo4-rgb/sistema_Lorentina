@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from './api';
+import LoadingState from './components/LoadingState';
 
 function DashboardResumen({ usuario }) {
   const [stats, setStats] = useState({
@@ -50,6 +51,7 @@ function DashboardResumen({ usuario }) {
 
   return (
     <div className="fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+      {loading && <LoadingState mensaje="Cargando resumen del dashboard..." />}
       
       {/* HEADER / BIENVENIDA */}
       <div style={{
