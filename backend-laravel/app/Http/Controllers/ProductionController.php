@@ -273,9 +273,9 @@ class ProductionController extends Controller
                 ]
             );
 
-            $this->sumarOrdenAInventario($orden, 'CABECERA', $tipo);
+            $this->sumarOrdenAInventario($orden, 'FABRICA', $tipo);
             $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
-            $this->registrarMovimientoIngresoOrden($orden, 'CABECERA', $tipo);
+            $this->registrarMovimientoIngresoOrden($orden, 'FABRICA', $tipo);
 
             $orden->update(['estado' => 'EN_STOCK']);
         });
