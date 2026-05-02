@@ -98,7 +98,8 @@ class ProductionController extends Controller
         $fechaInicio = $request->query('inicio');
         $fechaFin = $request->query('fin');
         
-        $queryOrdenes = OrdenProduccion::query()->where('estado', '!=', 'TERMINADO');
+        $queryOrdenes = OrdenProduccion::query()
+            ->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
         $qCreadas = OrdenProduccion::query();
         $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
 
