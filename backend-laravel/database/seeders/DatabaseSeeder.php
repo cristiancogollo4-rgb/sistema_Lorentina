@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             TarifaCategoriaSeeder::class,
             ClienteSeeder::class,
             OrdenProduccionSeeder::class,
+            LorentinaExcelSeeder::class,
         ]);
     }
 }
