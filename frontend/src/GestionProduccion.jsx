@@ -20,6 +20,7 @@ function GestionProduccion() {
       return fechaLocalISO(primerDia);
   });
   const [fechaFin, setFechaFin] = useState(() => fechaLocalISO(new Date()));
+  const [usarFiltroFechas, setUsarFiltroFechas] = useState(false);
   const [cargando, setCargando] = useState(false);
   
   // MODALES
@@ -34,7 +35,11 @@ function GestionProduccion() {
   // 1. CARGA DE DATOS
   const cargarDatos = (esPolling = false) => {
     if (!esPolling) setCargando(true);
-    api.get('/produccion/tablero?rango=produccion')
+    const url = usarFiltroFechas
+      ? `/produccion/tablero?rango=custom&inicio=${fechaInicio}&fin=${fechaFin}`
+      : '/produccion/tablero?rango=produccion';
+
+    api.get(url)
       .then(res => {
         setOrdenes(res.data.ordenes || []);
         setEmpleados(res.data.empleados || []);
@@ -49,7 +54,7 @@ function GestionProduccion() {
     // Aumentamos a 15 segundos para no saturar la red (especialmente con bases de datos en la nube como Supabase)
     const intervalo = setInterval(() => cargarDatos(true), 15000); 
     return () => clearInterval(intervalo);
-  }, []);
+  }, [usarFiltroFechas, fechaInicio, fechaFin]);
 
   // --- FILTRADO ---
   const ordenesFiltradas = ordenes.filter(o => {
@@ -201,17 +206,31 @@ function GestionProduccion() {
               <input 
                   type="date" 
                   value={fechaInicio} 
-                  onChange={e => setFechaInicio(e.target.value)}
+                  onChange={e => {
+                    setFechaInicio(e.target.value);
+                    setUsarFiltroFechas(true);
+                  }}
                   style={{ border: 'none', outline: 'none', background: 'transparent', padding: '8px 5px', color: '#334155', fontWeight: '500', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#64748b', marginLeft: '5px' }}>Hasta:</span>
               <input 
                   type="date" 
                   value={fechaFin} 
-                  onChange={e => setFechaFin(e.target.value)}
+                  onChange={e => {
+                    setFechaFin(e.target.value);
+                    setUsarFiltroFechas(true);
+                  }}
                   style={{ border: 'none', outline: 'none', background: 'transparent', padding: '8px 5px', color: '#334155', fontWeight: '500', cursor: 'pointer' }}
               />
           </div>
+          {usarFiltroFechas && (
+            <button
+              onClick={() => setUsarFiltroFechas(false)}
+              style={{ background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Ver producción activa
+            </button>
+          )}
 
           <select 
               value={filtroEmpleado} 
