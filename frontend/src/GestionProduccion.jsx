@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import api from './api';
 
 function GestionProduccion() {
+  const fechaLocalISO = (fecha = new Date()) => {
+    const offset = fecha.getTimezoneOffset() * 60000;
+    return new Date(fecha.getTime() - offset).toISOString().split('T')[0];
+  };
+
   const [ordenes, setOrdenes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [stats, setStats] = useState({ paresFabricar: 0, paresStock: 0 });
@@ -11,9 +16,9 @@ function GestionProduccion() {
       const hoy = new Date();
       // Por defecto inicio del mes actual
       const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-      return primerDia.toISOString().split('T')[0];
+      return fechaLocalISO(primerDia);
   });
-  const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().split('T')[0]);
+  const [fechaFin, setFechaFin] = useState(() => fechaLocalISO(new Date()));
   const [cargando, setCargando] = useState(false);
   
   // MODALES
@@ -28,7 +33,7 @@ function GestionProduccion() {
   // 1. CARGA DE DATOS
   const cargarDatos = (esPolling = false) => {
     if (!esPolling) setCargando(true);
-    api.get(`/produccion/tablero?rango=custom&inicio=${fechaInicio}&fin=${fechaFin}`)
+    api.get('/produccion/tablero?rango=produccion')
       .then(res => {
         setOrdenes(res.data.ordenes || []);
         setEmpleados(res.data.empleados || []);
@@ -43,7 +48,7 @@ function GestionProduccion() {
     // Aumentamos a 15 segundos para no saturar la red (especialmente con bases de datos en la nube como Supabase)
     const intervalo = setInterval(() => cargarDatos(true), 15000); 
     return () => clearInterval(intervalo);
-  }, [fechaInicio, fechaFin]);
+  }, []);
 
   // --- FILTRADO ---
   const ordenesFiltradas = ordenes.filter(o => {
