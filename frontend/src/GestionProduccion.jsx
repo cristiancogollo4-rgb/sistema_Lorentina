@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from './api';
+import LoadingState from './components/LoadingState';
 
 function GestionProduccion() {
   const fechaLocalISO = (fecha = new Date()) => {
@@ -181,6 +182,8 @@ function GestionProduccion() {
             <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#5D4037', marginTop: '5px' }}>{stats.paresStock}</div>
          </div>
       </div>
+
+      {cargando && <LoadingState mensaje="Cargando órdenes de producción..." />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>

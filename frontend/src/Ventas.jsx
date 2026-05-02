@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from './api';
+import LoadingState from './components/LoadingState';
 
 const METODOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'NEQUI', 'DAVIPLATA', 'PAYPAL', 'WIRE'];
 const CANALES = {
@@ -255,6 +256,7 @@ export default function Ventas({ usuario }) {
       </div>
 
       {error && !mostrarModal && <div style={errorBox}>{error}</div>}
+      {cargando && <LoadingState mensaje="Cargando ventas..." />}
 
       <div className="content-card" style={{ overflowX: 'auto' }}>
         <table className="modern-table" style={{ width: '100%', minWidth: '1100px' }}>
