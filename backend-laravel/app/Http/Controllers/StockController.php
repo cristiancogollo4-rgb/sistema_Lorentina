@@ -164,13 +164,15 @@ class StockController extends Controller
                 'sucursal' => $data['destino'],
             ]);
 
+            $movimientos = [];
+            $ahora = now();
             foreach ($cantidades as $talla => $cantidad) {
                 $campo = "t{$talla}";
                 $origen->{$campo} = (int) ($origen->{$campo} ?? 0) - $cantidad;
                 $destino->{$campo} = (int) ($destino->{$campo} ?? 0) + $cantidad;
 
                 if ($cantidad > 0) {
-                    InventarioMovimiento::query()->create([
+                    $movimientos[] = [
                         'tipo_movimiento' => 'TRANSFER_OUT',
                         'orden_produccion_id' => null,
                         'venta_id' => null,
@@ -181,10 +183,10 @@ class StockController extends Controller
                         'talla' => (int) $talla,
                         'cantidad' => (int) $cantidad,
                         'usuario_id' => null,
-                        'created_at' => now(),
-                    ]);
+                        'created_at' => $ahora,
+                    ];
 
-                    InventarioMovimiento::query()->create([
+                    $movimientos[] = [
                         'tipo_movimiento' => 'TRANSFER_IN',
                         'orden_produccion_id' => null,
                         'venta_id' => null,
@@ -195,9 +197,13 @@ class StockController extends Controller
                         'talla' => (int) $talla,
                         'cantidad' => (int) $cantidad,
                         'usuario_id' => null,
-                        'created_at' => now(),
-                    ]);
+                        'created_at' => $ahora,
+                    ];
                 }
+            }
+
+            if ($movimientos !== []) {
+                InventarioMovimiento::query()->insert($movimientos);
             }
 
             $origen->total = $this->sumarTotalInventario($origen);

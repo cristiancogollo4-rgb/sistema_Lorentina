@@ -276,7 +276,6 @@ class ProductionController extends Controller
             $this->sumarOrdenAInventario($orden, 'CABECERA', $tipo);
             $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
             $this->registrarMovimientoIngresoOrden($orden, 'CABECERA', $tipo);
-            $this->registrarMovimientoIngresoOrden($orden, 'TOTAL', $tipo);
 
             $orden->update(['estado' => 'EN_STOCK']);
         });
@@ -432,13 +431,16 @@ class ProductionController extends Controller
 
     private function registrarMovimientoIngresoOrden(OrdenProduccion $orden, string $sucursal, string $tipo): void
     {
+        $movimientos = [];
+        $ahora = now();
+
         foreach (range(35, 42) as $talla) {
             $cantidad = (int) ($orden->{"t{$talla}"} ?? 0);
             if ($cantidad <= 0) {
                 continue;
             }
 
-            InventarioMovimiento::query()->create([
+            $movimientos[] = [
                 'tipo_movimiento' => 'IN',
                 'orden_produccion_id' => $orden->id,
                 'venta_id' => null,
@@ -449,8 +451,12 @@ class ProductionController extends Controller
                 'talla' => $talla,
                 'cantidad' => $cantidad,
                 'usuario_id' => null,
-                'created_at' => now(),
-            ]);
+                'created_at' => $ahora,
+            ];
+        }
+
+        if ($movimientos !== []) {
+            InventarioMovimiento::query()->insert($movimientos);
         }
     }
 

@@ -330,6 +330,8 @@ class VentaController extends Controller
                 ]);
             }
 
+            $movimientos = [];
+            $ahora = now();
             foreach ($registro['tallas'] as $talla => $cantidad) {
                 $campo = "t{$talla}";
                 if ((int) ($inventarioSucursal->{$campo} ?? 0) < $cantidad) {
@@ -339,7 +341,7 @@ class VentaController extends Controller
                 }
                 $inventarioSucursal->{$campo} = (int) ($inventarioSucursal->{$campo} ?? 0) - $cantidad;
 
-                InventarioMovimiento::query()->create([
+                $movimientos[] = [
                     'tipo_movimiento' => 'OUT',
                     'orden_produccion_id' => null,
                     'venta_id' => $ventaId,
@@ -350,8 +352,12 @@ class VentaController extends Controller
                     'talla' => (int) $talla,
                     'cantidad' => (int) $cantidad,
                     'usuario_id' => null,
-                    'created_at' => now(),
-                ]);
+                    'created_at' => $ahora,
+                ];
+            }
+
+            if ($movimientos !== []) {
+                InventarioMovimiento::query()->insert($movimientos);
             }
 
             $inventarioSucursal->total = $this->sumarTotalInventario($inventarioSucursal);
