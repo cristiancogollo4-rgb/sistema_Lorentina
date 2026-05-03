@@ -148,7 +148,7 @@ function Dashboard() {
           {activeTab === 'empleados' && <Empleados />}
           {activeTab === 'stock' && <Stock soloLectura={usuario.rol === 'VENDEDOR'} />}
           {activeTab === 'produccion' && <GestionProduccion />}
-          {activeTab === 'fabricar' && <Produccion />}
+          {activeTab === 'fabricar' && <Produccion usuario={usuario} />}
           {activeTab === 'clientes' && <Clientes usuario={usuario} />}
           {activeTab === 'apartados' && (
             <h2 style={{ padding: '2rem' }}>

@@ -33,7 +33,8 @@ class ProductionController extends Controller
         $data = $request->validate([
             'referencia' => ['required', 'string'],
             'color' => ['required', 'string'],
-            'categoria' => ['nullable', 'string'],
+            'categoria' => ['required', 'string'],
+            'isEspecial' => ['nullable', 'boolean'],
             'materiales' => ['required', 'string'],
             'observacion' => ['nullable', 'string'],
             'destino' => ['required', 'string'],
@@ -56,8 +57,9 @@ class ProductionController extends Controller
             't44' => ['nullable', 'numeric'],
         ]);
 
+        $isEspecial = filter_var($data['isEspecial'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $categoria = $data['categoria'] ?? 'ROMANA';
-        $precios = $this->resolverPrecios($categoria, $data);
+        $precios = $this->resolverPrecios($isEspecial, $categoria, $data);
 
         $totalPares = 0;
         $tallas = [];
@@ -479,9 +481,9 @@ class ProductionController extends Controller
         ]);
     }
 
-    private function resolverPrecios(string $categoria, array $data): array
+    private function resolverPrecios(bool $isEspecial, string $categoria, array $data): array
     {
-        if ($categoria === 'ESPECIAL') {
+        if ($isEspecial) {
             return [
                 'corte' => (int) ($data['precioManualCorte'] ?? 0),
                 'armado' => (int) ($data['precioManualArmado'] ?? 0),

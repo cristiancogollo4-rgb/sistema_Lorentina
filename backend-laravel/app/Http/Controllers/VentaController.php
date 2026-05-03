@@ -45,6 +45,7 @@ class VentaController extends Controller
                     'canalVenta' => $venta->canal_venta,
                     'local' => $venta->local?->nombre,
                     'metodoPago' => $venta->metodo_pago,
+                    'titularCuenta' => $venta->titular_cuenta,
                     'notas' => $venta->notas,
                     'total' => (float) $venta->total,
                     'totalPares' => (int) $venta->items->sum('cantidad'),
@@ -206,6 +207,7 @@ class VentaController extends Controller
                 'canal_venta' => $data['canal_venta'],
                 'local_id' => $data['canal_venta'] === 'LOCAL' ? $data['local_id'] : null,
                 'metodo_pago' => $data['metodo_pago'],
+                'titular_cuenta' => $data['titular_cuenta'] ?? null,
                 'notas' => $data['notas'] ?? null,
                 'total' => $total,
                 'fecha_venta' => now(),
@@ -240,6 +242,7 @@ class VentaController extends Controller
             'local' => $venta->local?->nombre,
             'total' => (float) $venta->total,
             'totalPares' => (int) $venta->items->sum('cantidad'),
+            'titular_cuenta' => $venta->titular_cuenta,
         ], 201);
     }
 

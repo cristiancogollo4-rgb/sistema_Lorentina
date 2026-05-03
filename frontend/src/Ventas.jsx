@@ -2,29 +2,34 @@ import { useEffect, useMemo, useState } from 'react';
 import api from './api';
 import LoadingState from './components/LoadingState';
 
-const METODOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'NEQUI', 'DAVIPLATA', 'PAYPAL', 'WIRE'];
+const METODOS_PAGO = ['EFECTIVO', 'BANCOLOMBIA', 'DAVIPLATA', 'ADDI', 'BOLD'];
 const CANALES = {
-  ONLINE: { label: 'Online' },
-  LOCAL: { label: 'En local' },
+  WHATSAPP: { label: 'WhatsApp' },
+  INSTAGRAM: { label: 'Instagram' },
+  LOCAL: { label: 'Local' },
+  MESSENGER: { label: 'Messenger' },
 };
 
 const FORM_VENTA = {
   cliente_id: '',
-  canal_venta: 'ONLINE',
+  canal_venta: 'WHATSAPP',
   local_id: '',
   sucursal: 'CABECERA',
-  metodo_pago: 'TRANSFERENCIA',
+  metodo_pago: 'EFECTIVO',
+  titular_cuenta: '',
   items: [],
   notas: '',
 };
 
 function nuevaLinea() {
   return {
-    seleccion: '',
+    seleccion: '', // key: ref-color-sucursal-talla
     producto_id: '',
     talla: '',
     cantidad: 1,
     precio_unitario: '',
+    referencia: '',
+    color: '',
   };
 }
 
@@ -43,6 +48,9 @@ export default function Ventas({ usuario }) {
 
   // Filtros
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [busquedaProducto, setBusquedaProducto] = useState('');
+  const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
   const [rangoFecha, setRangoFecha] = useState('TODOS');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -50,6 +58,70 @@ export default function Ventas({ usuario }) {
 
   const [vendedores, setVendedores] = useState([]);
   const [filtroVendedor, setFiltroVendedor] = useState('');
+
+  // Auto-titular de cuenta
+  useEffect(() => {
+    if (!form.metodo_pago) return;
+
+    const clienteObj = clientes.find(c => c.id === Number(form.cliente_id));
+    const esMayorista = clienteObj?.tipo_cliente === 'MAYORISTA' || clienteObj?.tipo_cliente === 'MAYOR';
+    
+    let titular = '';
+    const m = form.metodo_pago;
+
+    if (m === 'BANCOLOMBIA') {
+      titular = esMayorista ? 'Jhon Mario Rojas' : 'Lorayne Rojas';
+    } else if (m === 'DAVIPLATA') {
+      titular = 'Jhon Mario Rojas';
+    } else if (m === 'ADDI' || m === 'BOLD') {
+      titular = 'Lorayne Rojas';
+    } else {
+      titular = ''; // Efectivo no tiene titular de cuenta bancaria
+    }
+
+    if (titular !== form.titular_cuenta) {
+      setField('titular_cuenta', titular);
+    }
+  }, [form.metodo_pago, form.cliente_id, clientes]);
+
+  const productosAgrupados = useMemo(() => {
+    const grupos = {};
+    paresDisponibles.forEach(op => {
+      const key = `${op.referencia}-${op.color}-${op.tipo}`;
+      if (!grupos[key]) {
+        grupos[key] = {
+          referencia: op.referencia,
+          color: op.color,
+          tipo: op.tipo,
+          tallas: {}
+        };
+      }
+      grupos[key].tallas[op.talla] = {
+        disponibles: op.disponibles,
+        key: op.key,
+        productoId: op.productoId
+      };
+    });
+
+    // Filtrar por búsqueda de producto
+    if (!busquedaProducto) return Object.values(grupos);
+    
+    const search = busquedaProducto.toLowerCase();
+    return Object.values(grupos).filter(g => 
+      g.referencia.toLowerCase().includes(search) || 
+      g.color.toLowerCase().includes(search)
+    );
+  }, [paresDisponibles, busquedaProducto]);
+
+  // Clientes filtrados para el buscador del modal
+  const clientesFiltradosModal = useMemo(() => {
+    if (!busquedaCliente) return [];
+    const search = busquedaCliente.toLowerCase();
+    return clientes.filter(c => 
+      c.nombre.toLowerCase().includes(search) || 
+      (c.telefono || '').includes(search)
+    );
+  }, [clientes, busquedaCliente]);
 
   async function cargarTodo() {
     console.log("Iniciando cargarTodo...");
@@ -282,6 +354,7 @@ export default function Ventas({ usuario }) {
         local_id: form.canal_venta === 'LOCAL' ? Number(form.local_id) : null,
         sucursal: form.sucursal,
         metodo_pago: form.metodo_pago,
+        titular_cuenta: form.titular_cuenta,
         notas: form.notas,
         items,
       });
@@ -480,16 +553,55 @@ export default function Ventas({ usuario }) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: '14px' }}>
-              <div style={{ gridColumn: '1 / span 2' }}>
-                <label style={labelStyle}>Cliente *</label>
-                <select style={selectStyle} value={form.cliente_id} onChange={(e) => setField('cliente_id', e.target.value)}>
-                  <option value="">-- Seleccionar cliente --</option>
-                  {clientes.map((cliente) => (
-                    <option key={cliente.id} value={cliente.id}>
-                      {cliente.nombre} {cliente.tipo_cliente ? `(${cliente.tipo_cliente})` : ''}
-                    </option>
-                  ))}
-                </select>
+              <div style={{ gridColumn: '1 / span 2', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>Cliente *</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setMostrarNuevoCliente(true)}
+                    style={{ background: 'none', border: 'none', color: '#8d6e63', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    + Nuevo cliente
+                  </button>
+                </div>
+                
+                <input 
+                  type="text" 
+                  placeholder="Buscar cliente por nombre o tel..." 
+                  style={inputStyle}
+                  value={busquedaCliente}
+                  onChange={(e) => setBusquedaCliente(e.target.value)}
+                  onFocus={() => { if(!form.cliente_id) setBusquedaCliente('') }}
+                />
+                
+                {busquedaCliente && !form.cliente_id && (
+                  <div style={dropdownList}>
+                    {clientesFiltradosModal.length > 0 ? (
+                      clientesFiltradosModal.map(c => (
+                        <div 
+                          key={c.id} 
+                          style={dropdownItem} 
+                          onClick={() => {
+                            setField('cliente_id', c.id);
+                            setBusquedaCliente(`${c.nombre} (${c.tipo_cliente})`);
+                          }}
+                        >
+                          <strong>{c.nombre}</strong> - {c.tipo_cliente} {c.telefono ? `(${c.telefono})` : ''}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ ...dropdownItem, color: '#999', textAlign: 'center' }}>
+                        No se encontraron resultados
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {form.cliente_id && !busquedaCliente && (
+                  <div style={{ position: 'absolute', top: '35px', right: '10px', color: '#8d6e63', fontSize: '0.8rem', cursor: 'pointer' }} onClick={() => { setField('cliente_id', ''); setBusquedaCliente(''); }}>
+                    Limpiar ✕
+                  </div>
+                )}
               </div>
 
               <div>
@@ -502,7 +614,7 @@ export default function Ventas({ usuario }) {
               </div>
 
               <div>
-                <label style={labelStyle}>Descontar de *</label>
+                <label style={labelStyle}>Sucursal (Stock) *</label>
                 <select style={selectStyle} value={form.sucursal} onChange={(e) => setField('sucursal', e.target.value)}>
                   {SUCURSALES_STOCK.map((sucursal) => (
                     <option key={sucursal} value={sucursal}>{sucursal}</option>
@@ -510,13 +622,23 @@ export default function Ventas({ usuario }) {
                 </select>
               </div>
 
-              <div>
+              <div style={{ gridColumn: '1 / span 2' }}>
                 <label style={labelStyle}>Metodo de pago *</label>
                 <select style={selectStyle} value={form.metodo_pago} onChange={(e) => setField('metodo_pago', e.target.value)}>
                   {METODOS_PAGO.map((metodo) => (
                     <option key={metodo} value={metodo}>{metodo}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ gridColumn: '3 / span 2' }}>
+                <label style={labelStyle}>Titular Responsable</label>
+                <input 
+                  type="text" 
+                  readOnly 
+                  style={{ ...inputStyle, background: '#f9f9f9', color: '#555' }} 
+                  value={form.titular_cuenta || 'N/A'} 
+                />
               </div>
 
               <div style={{ gridColumn: '1 / span 4' }}>
@@ -542,70 +664,121 @@ export default function Ventas({ usuario }) {
               )}
             </div>
 
-            <div style={{ marginTop: '22px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4 style={{ margin: 0, color: '#333' }}>Pares vendidos</h4>
-              <button type="button" onClick={agregarLinea} style={btnSecundario}>+ Agregar linea</button>
-            </div>
+            <div style={{ marginTop: '22px', border: '1px solid #eee', borderRadius: '14px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h4 style={{ margin: 0, color: '#333' }}>Menú de Productos Inteligente</h4>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Buscar producto..." 
+                    style={{ ...inputStyle, width: '250px', padding: '6px 12px' }}
+                    value={busquedaProducto}
+                    onChange={(e) => setBusquedaProducto(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {form.items.map((item, index) => {
-                const opcionSeleccionada = item.seleccion ? opcionesPorClave[item.seleccion] : null;
-
-                return (
-                  <div key={index} style={lineaVenta}>
-                    <div style={{ flex: 2.5 }}>
-                      <label style={labelStyle}>Producto *</label>
-                      <select
-                        style={selectStyle}
-                        value={item.seleccion}
-                        onChange={(e) => actualizarLinea(index, 'seleccion', e.target.value)}
-                      >
-                        <option value="">-- Seleccionar producto y talla --</option>
-                        {paresDisponibles.map((opcion) => (
-                          <option key={opcion.key} value={opcion.key}>
-                            {`${opcion.referencia} ${opcion.color} | ${opcion.tipo} | ${opcion.sucursal} | T${opcion.talla} | ${opcion.disponibles} disp.`}
-                          </option>
-                        ))}
-                      </select>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '5px' }}>
+                {productosAgrupados.map(prod => (
+                  <div key={`${prod.referencia}-${prod.color}`} style={cardProducto}>
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>{prod.referencia}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#8d6e63' }}>{prod.color} | {prod.tipo}</div>
                     </div>
+                    
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {[34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].map(t => {
+                        const info = prod.tallas[t];
+                        const estaSeleccionado = form.items.some(it => it.seleccion === info?.key);
+                        
+                        if (!info) return (
+                          <div key={t} style={{ ...tallaBox, opacity: 0.2, cursor: 'not-allowed' }}>{t}</div>
+                        );
 
-                    <div style={{ width: '90px' }}>
-                      <label style={labelStyle}>Cant.</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min="1"
-                        max={opcionSeleccionada?.disponibles || undefined}
-                        value={item.cantidad}
-                        onChange={(e) => actualizarLinea(index, 'cantidad', e.target.value)}
-                      />
+                        return (
+                          <div 
+                            key={t} 
+                            style={{ 
+                              ...tallaBox, 
+                              ...(estaSeleccionado ? tallaBoxActivo : {}),
+                              position: 'relative'
+                            }}
+                            onClick={() => {
+                              if (estaSeleccionado) {
+                                setForm(prev => ({
+                                  ...prev,
+                                  items: prev.items.filter(it => it.seleccion !== info.key)
+                                }));
+                              } else {
+                                const precioSugerido = (clientes.find(c => c.id === Number(form.cliente_id))?.tipo_cliente === 'MAYORISTA' || clientes.find(c => c.id === Number(form.cliente_id))?.tipo_cliente === 'MAYOR') 
+                                  ? 0 : 0; // Se podria precargar el precio del producto aqui
+                                
+                                setForm(prev => ({
+                                  ...prev,
+                                  items: [...prev.items, {
+                                    seleccion: info.key,
+                                    producto_id: info.productoId,
+                                    talla: t,
+                                    cantidad: 1,
+                                    precio_unitario: 0,
+                                    referencia: prod.referencia,
+                                    color: prod.color
+                                  }]
+                                }));
+                              }
+                            }}
+                          >
+                            {t}
+                            <span style={dispBadge}>{info.disponibles}</span>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    <div style={{ width: '140px' }}>
-                      <label style={labelStyle}>Precio unit.</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min="0"
-                        value={item.precio_unitario}
-                        onChange={(e) => actualizarLinea(index, 'precio_unitario', e.target.value)}
-                      />
-                    </div>
-
-                    <div style={{ width: '110px' }}>
-                      <label style={labelStyle}>Subtotal</label>
-                      <div style={subtotalBox}>
-                        ${formatoNumero((Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0))}
-                      </div>
-                    </div>
-
-                    <button type="button" onClick={() => eliminarLinea(index)} style={btnEliminar} disabled={form.items.length === 1}>
-                      Eliminar
-                    </button>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
+
+            {form.items.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <h4 style={{ fontSize: '0.9rem', marginBottom: '10px' }}>Resumen de items seleccionados</h4>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {form.items.map((item, index) => (
+                    <div key={index} style={{ ...lineaVenta, padding: '8px 14px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{item.referencia} {item.color}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#888' }}>Talla {item.talla}</div>
+                      </div>
+                      
+                      <div style={{ width: '70px' }}>
+                        <input
+                          style={{ ...inputStyle, padding: '4px 8px', fontSize: '0.85rem' }}
+                          type="number"
+                          value={item.cantidad}
+                          onChange={(e) => actualizarLinea(index, 'cantidad', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ width: '120px' }}>
+                        <input
+                          style={{ ...inputStyle, padding: '4px 8px', fontSize: '0.85rem' }}
+                          type="number"
+                          placeholder="Precio"
+                          value={item.precio_unitario}
+                          onChange={(e) => actualizarLinea(index, 'precio_unitario', e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ width: '100px', textAlign: 'right', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        ${formatoNumero(item.cantidad * item.precio_unitario)}
+                      </div>
+
+                      <button type="button" onClick={() => eliminarLinea(index)} style={{ background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {error && <div style={{ ...errorBox, marginTop: '16px' }}>{error}</div>}
 
@@ -633,7 +806,8 @@ export default function Ventas({ usuario }) {
           <div style={{ ...modal, width: '600px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ margin: 0, color: '#582e2e' }}>Pares Vendidos</h3>
-              <button onClick={() => setVentaSeleccionada(null)} style={btnCerrar}>x</button>
+              <button onClick={() => setVentaSeleccionada(null)} style={btnCerrar}>x
+              </button>
             </div>
 
             <div style={{ background: '#fcfcfc', borderRadius: '14px', padding: '20px', border: '1px solid #eee' }}>
@@ -674,6 +848,16 @@ export default function Ventas({ usuario }) {
             </div>
           </div>
         </div>
+      )}
+      {mostrarNuevoCliente && (
+        <NuevoClienteModal 
+          onCerrar={() => setMostrarNuevoCliente(false)} 
+          onGuardar={(nuevo) => {
+            setClientes(prev => [...prev, nuevo]);
+            setField('cliente_id', nuevo.id);
+            setBusquedaCliente(`${nuevo.nombre} (${nuevo.tipo_cliente})`);
+          }}
+        />
       )}
     </div>
   );
@@ -742,3 +926,78 @@ const tagCantidad = {
   borderRadius: '4px',
   fontSize: '0.75rem'
 };
+
+const cardProducto = { background: 'white', border: '1px solid #eee', borderRadius: '12px', padding: '12px', transition: 'all 0.2s' };
+const tallaBox = { width: '36px', height: '36px', border: '1.5px solid #eee', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', background: '#fdfdfd', color: '#666', transition: 'all 0.15s' };
+const tallaBoxActivo = { background: '#582e2e', color: 'white', borderColor: '#582e2e' };
+const dispBadge = { position: 'absolute', top: '-6px', right: '-6px', background: '#fdf4f1', color: '#8d6e63', fontSize: '0.62rem', padding: '1px 3px', borderRadius: '4px', border: '1px solid #eaddd7', minWidth: '14px', textAlign: 'center' };
+const dropdownList = { position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #eee', borderRadius: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 10, maxHeight: '200px', overflowY: 'auto', marginTop: '5px' };
+const dropdownItem = { padding: '10px 15px', cursor: 'pointer', borderBottom: '1px solid #f5f5f5', fontSize: '0.9rem', hover: { background: '#fcfcfc' } };
+
+function NuevoClienteModal({ onCerrar, onGuardar }) {
+  const [nuevoCli, setNuevoCli] = useState({ nombre: '', telefono: '', tipo_cliente: 'DETAL' });
+  const [cargando, setCargando] = useState(false);
+
+  const guardar = async () => {
+    if (!nuevoCli.nombre) return alert('El nombre es obligatorio');
+    setCargando(true);
+    try {
+      const res = await api.post('/clientes', nuevoCli);
+      onGuardar(res.data);
+      onCerrar();
+    } catch (err) {
+      alert('Error al guardar cliente');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  return (
+    <div style={{ ...overlay, zIndex: 1100 }} onClick={onCerrar}>
+      <div style={{ ...modal, width: '400px' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ margin: 0, color: '#582e2e' }}>Registrar Nuevo Cliente</h3>
+          <button onClick={onCerrar} style={btnCerrar}>x</button>
+        </div>
+        
+        <div style={{ display: 'grid', gap: '15px' }}>
+          <div>
+            <label style={labelStyle}>Nombre Completo *</label>
+            <input 
+              style={inputStyle} 
+              placeholder="Ej: Maria Perez"
+              value={nuevoCli.nombre} 
+              onChange={e => setNuevoCli({...nuevoCli, nombre: e.target.value})} 
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Teléfono</label>
+            <input 
+              style={inputStyle} 
+              placeholder="Ej: 3001234567"
+              value={nuevoCli.telefono} 
+              onChange={e => setNuevoCli({...nuevoCli, telefono: e.target.value})} 
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo de Cliente</label>
+            <select 
+              style={selectStyle} 
+              value={nuevoCli.tipo_cliente} 
+              onChange={e => setNuevoCli({...nuevoCli, tipo_cliente: e.target.value})}
+            >
+              <option value="DETAL">Detal</option>
+              <option value="MAYORISTA">Mayorista</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '25px' }}>
+          <button onClick={onCerrar} style={btnSecundario}>Cancelar</button>
+          <button onClick={guardar} disabled={cargando} style={btnPrimario}>
+            {cargando ? 'Guardando...' : 'Guardar Cliente'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
