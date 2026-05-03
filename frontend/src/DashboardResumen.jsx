@@ -103,21 +103,6 @@ function DashboardResumen({ usuario }) {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              {!esVendedor && (
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '10px 15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '5px', color: '#e5d3c3' }}>Ver estadísticas de:</label>
-                  <select 
-                    value={filtroVendedor} 
-                    onChange={(e) => setFiltroVendedor(e.target.value)}
-                    style={{ background: 'transparent', color: 'white', border: 'none', fontSize: '1rem', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    <option value="" style={{ color: 'black' }}>Toda la empresa</option>
-                    {vendedores.map(v => (
-                      <option key={v.id} value={v.id} style={{ color: 'black' }}>{v.nombre} {v.apellido}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div style={{ fontSize: '3rem', opacity: 0.8 }}>🏭</div>
             </div>
           </div>

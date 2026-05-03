@@ -12,7 +12,7 @@ class ClienteController extends Controller
     public function index(Request $request): JsonResponse
     {
         $vendedorId = $request->query('vendedor_id');
-        $query = Cliente::orderBy('nombre')
+        $query = Cliente::with('vendedor:id,nombre')->orderBy('nombre')
             ->when($vendedorId, fn ($q) => $q->where('clientes.vendedor_id', (int) $vendedorId));
 
         if ($request->has('tipo') && $request->tipo !== 'TODOS') {

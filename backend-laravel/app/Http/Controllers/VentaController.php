@@ -89,10 +89,10 @@ class VentaController extends Controller
             ->get(['id', 'nombre', 'direccion']);
 
         $vendedores = User::query()
-            ->where('rol', 'VENDEDOR')
+            ->whereIn('rol', ['VENDEDOR', 'ADMIN'])
             ->where('activo', true)
             ->orderBy('nombre')
-            ->get(['id', 'nombre', 'apellido']);
+            ->get(['id', 'nombre', 'apellido', 'rol']);
 
         $stockDisponible = InventarioZapato::query()
             ->where('sucursal', $sucursal)

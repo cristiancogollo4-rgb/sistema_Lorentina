@@ -445,7 +445,9 @@ export default function Ventas({ usuario }) {
               >
                 <option value="">Todos los vendedores</option>
                 {vendedores.map(v => (
-                  <option key={v.id} value={v.id}>{v.nombre} {v.apellido}</option>
+                  <option key={v.id} value={v.id}>
+                    {v.nombre} {v.apellido} {v.rol === 'ADMIN' ? '(Admin)' : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -476,6 +478,7 @@ export default function Ventas({ usuario }) {
             <tr style={{ background: '#f8f9fa' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left' }}>Fecha</th>
               <th>Cliente</th>
+              <th>Vendedor</th>
               <th>Tipo</th>
               <th>Canal</th>
               <th>Pago</th>
@@ -492,6 +495,7 @@ export default function Ventas({ usuario }) {
                   {venta.fechaVenta ? new Date(venta.fechaVenta).toLocaleString() : '-'}
                 </td>
                 <td style={{ fontWeight: 'bold', color: '#333' }}>{venta.cliente || '-'}</td>
+                <td style={{ color: '#0284c7', fontSize: '0.85rem', fontWeight: 'bold' }}>{venta.vendedor || 'Sistema'}</td>
                 <td style={{ textAlign: 'center', minWidth: '120px' }}>
                   <span style={{
                     padding: '4px 12px',
@@ -528,14 +532,14 @@ export default function Ventas({ usuario }) {
             ))}
             {!cargando && ventasFiltradas.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                   No se encontraron ventas con los filtros aplicados.
                 </td>
               </tr>
             )}
             {cargando && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                   Cargando ventas...
                 </td>
               </tr>

@@ -272,6 +272,7 @@ export default function Clientes({ usuario }) {
             <tr style={{ background: '#f8f9fa' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left' }}>Cliente</th>
               <th>Tipo</th>
+              <th>Creado Por</th>
               <th>Teléfono</th>
               <th>Ubicación</th>
               <th>Moneda</th>
@@ -291,6 +292,7 @@ export default function Clientes({ usuario }) {
                       {TIPO_LABELS[c.tipo_cliente]?.emoji} {c.tipo_cliente}
                     </span>
                   </td>
+                  <td style={{ color: '#0284c7', fontSize: '0.85rem', fontWeight: 'bold' }}>{c.vendedor?.nombre || 'Admin/General'}</td>
                   <td style={{ color: '#555', fontSize: '0.9rem' }}>{c.telefono || '—'}</td>
                   <td style={{ fontSize: '0.88rem', color: '#555' }}>
                     <strong>{ubicacion.principal}</strong>
@@ -311,7 +313,7 @@ export default function Clientes({ usuario }) {
             })}
             {clientesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
                   No se encontraron clientes.
                 </td>
               </tr>
