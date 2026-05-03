@@ -1,4 +1,36 @@
 import java.util.Properties
+import java.net.NetworkInterface
+import java.net.Inet4Address
+
+fun getLocalIpAddress(): String {
+    try {
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        while (interfaces.hasMoreElements()) {
+            val networkInterface = interfaces.nextElement()
+            if (networkInterface.isLoopback || !networkInterface.isUp || networkInterface.name.contains("vbox") || networkInterface.name.contains("wsl")) {
+                continue
+            }
+            val addresses = networkInterface.inetAddresses
+            while (addresses.hasMoreElements()) {
+                val address = addresses.nextElement()
+                if (address is Inet4Address && !address.isLoopbackAddress) {
+                    val ip = address.hostAddress
+                    // Ignorar la IP típica de VirtualBox
+                    if (ip == "192.168.56.1") continue
+                    
+                    // Priorizar subredes locales comunes
+                    if (ip.startsWith("192.168.") || ip.startsWith("10.")) {
+                        println("Lorentina Auto-Detect IP: Usando $ip de la interfaz ${networkInterface.displayName}")
+                        return ip
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        // Ignorar
+    }
+    return "10.0.2.2" // Fallback al emulador
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -25,7 +57,7 @@ android {
             properties.load(localPropertiesFile.inputStream())
         }
         val rawBaseUrl = properties.getProperty("API_BASE_URL")?.trim()?.trim('"')
-            ?: "http://10.0.2.2:8000/"
+            ?: "http://${getLocalIpAddress()}:8000/"
         val normalizedBaseUrl = rawBaseUrl.removeSuffix("/") + "/"
         buildConfigField("String", "BASE_URL", "\"$normalizedBaseUrl\"")
     }

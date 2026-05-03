@@ -102,9 +102,20 @@ class ProductionController extends Controller
             $rango = $request->query('rango', 'produccion');
             $fechaInicio = $request->query('inicio');
             $fechaFin = $request->query('fin');
+            $tipoFiltro = $request->query('tipo_filtro', 'activas');
             
-            $queryOrdenes = OrdenProduccion::query()
-                ->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
+            $queryOrdenes = OrdenProduccion::with('cliente:id,nombre');
+
+            if ($tipoFiltro === 'activas') {
+                $queryOrdenes->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
+            } elseif ($tipoFiltro === 'completadas') {
+                $queryOrdenes->whereIn('estado', ['TERMINADO', 'EN_STOCK']);
+            } elseif ($tipoFiltro === 'clientes') {
+                $queryOrdenes->whereNotNull('cliente_id');
+            } elseif ($tipoFiltro === 'stock') {
+                $queryOrdenes->whereNull('cliente_id');
+            }
+            
             $qCreadas = OrdenProduccion::query();
             $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
 
@@ -597,6 +608,7 @@ class ProductionController extends Controller
             'observacion' => $orden->observacion,
             'destino' => $orden->destino,
             'clienteId' => $orden->cliente_id,
+            'clienteNombre' => $orden->cliente ? $orden->cliente->nombre : null,
             'cortadorId' => $orden->cortador_id,
             'armadorId' => $orden->armador_id,
             'costureroId' => $orden->costurero_id,

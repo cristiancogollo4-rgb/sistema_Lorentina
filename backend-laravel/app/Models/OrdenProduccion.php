@@ -87,4 +87,9 @@ class OrdenProduccion extends Model
             'total_pares' => 'integer',
         ];
     }
+
+    public function cliente()
+    {
+        return $this->belongsTo(\App\Models\Cliente::class, 'cliente_id');
+    }
 }

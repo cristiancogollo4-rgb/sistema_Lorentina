@@ -6,6 +6,8 @@ function Empleados() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filtro, setFiltro] = useState('');
+  const [filtroRol, setFiltroRol] = useState('TODOS');
+  const [filtroEstado, setFiltroEstado] = useState('TODOS');
   const [errorCarga, setErrorCarga] = useState('');
 
   // --- ESTADOS DEL MODAL Y EDICIÓN ---
@@ -111,9 +113,24 @@ function Empleados() {
 
   const usuariosFiltrados = usuarios.filter(u => {
     const nombreCompleto = `${u.nombre || ''} ${u.apellido || ''}`.toLowerCase();
-    const roles = (u.rol || '').toLowerCase();
+    const roles = (u.rol || '').toUpperCase();
     const textoFiltro = filtro.toLowerCase();
-    return nombreCompleto.includes(textoFiltro) || roles.includes(textoFiltro);
+    
+    // Filtro por texto
+    const cumpleTexto = nombreCompleto.includes(textoFiltro) || roles.toLowerCase().includes(textoFiltro);
+    
+    // Filtro por rol
+    let cumpleRol = true;
+    if (filtroRol === 'ADMIN') cumpleRol = roles.includes('ADMIN');
+    else if (filtroRol === 'VENDEDOR') cumpleRol = roles.includes('VENDEDOR');
+    else if (filtroRol === 'FABRICA') cumpleRol = ['CORTE', 'ARMADOR', 'COSTURA', 'COSTURERO', 'SOLADURA', 'SOLADOR', 'EMPLANTILLADOR', 'BODEGUERO'].some(r => roles.includes(r));
+    
+    // Filtro por estado
+    let cumpleEstado = true;
+    if (filtroEstado === 'ACTIVO') cumpleEstado = u.activo !== false;
+    else if (filtroEstado === 'INACTIVO') cumpleEstado = u.activo === false;
+
+    return cumpleTexto && cumpleRol && cumpleEstado;
   });
 
   return (
@@ -129,8 +146,8 @@ function Empleados() {
         </button>
       </div>
 
-      <div style={{ marginBottom: '25px' }}>
-        <div className="search-container" style={{ maxWidth: '400px' }}>
+      <div style={{ marginBottom: '25px', display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="search-container" style={{ width: '400px', margin: 0 }}>
           <span className="search-icon-inside">🔍</span>
           <input 
               type="text" 
@@ -145,6 +162,29 @@ function Empleados() {
             </button>
           )}
         </div>
+
+        <select 
+            value={filtroRol} 
+            onChange={e => setFiltroRol(e.target.value)}
+            className="search-input-premium"
+            style={{ width: '200px', paddingLeft: '15px', fontWeight: 'bold', color: '#475569', margin: 0 }}
+        >
+            <option value="TODOS">🧑‍💼 Todos los Roles</option>
+            <option value="ADMIN">👑 Administradores</option>
+            <option value="VENDEDOR">💼 Vendedores</option>
+            <option value="FABRICA">🏭 Solo Fábrica</option>
+        </select>
+
+        <select 
+            value={filtroEstado} 
+            onChange={e => setFiltroEstado(e.target.value)}
+            className="search-input-premium"
+            style={{ width: '160px', paddingLeft: '15px', fontWeight: 'bold', color: '#475569', margin: 0 }}
+        >
+            <option value="TODOS">🟢 Todos (Act/Inact)</option>
+            <option value="ACTIVO">✅ Solo Activos</option>
+            <option value="INACTIVO">❌ Solo Inactivos</option>
+        </select>
       </div>
 
       <div className="employee-table-container">
