@@ -47,6 +47,13 @@ function Dashboard() {
           {usuario.rol === 'ADMIN' && (
             <>
               <li
+                className={`menu-item ${activeTab === 'clientes' ? 'active' : ''}`}
+                onClick={() => setActiveTab('clientes')}
+              >
+                <span>Clientes</span>
+              </li>
+
+              <li
                 className={`menu-item ${activeTab === 'empleados' ? 'active' : ''}`}
                 onClick={() => setActiveTab('empleados')}
               >
