@@ -57,14 +57,27 @@ export default function Clientes({ usuario }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
+  const [vendedores, setVendedores] = useState([]);
+  const [filtroVendedor, setFiltroVendedor] = useState('');
+
   useEffect(() => {
     cargar();
+  }, [filtroVendedor]);
+
+  useEffect(() => {
+    if (usuario?.rol === 'ADMIN') {
+      api.get('/usuarios').then(res => {
+         const vends = res.data.filter(u => u.rol === 'VENDEDOR' || u.rol === 'ADMIN');
+         setVendedores(vends);
+      }).catch(err => console.error(err));
+    }
   }, []);
 
   const cargar = async () => {
     try {
       const isVendedor = usuario?.rol?.includes('VENDEDOR');
-      const params = isVendedor ? `?vendedor_id=${usuario.id}` : '';
+      const vId = isVendedor ? usuario.id : filtroVendedor;
+      const params = vId ? `?vendedor_id=${vId}` : '';
       const res = await api.get(`/clientes${params}`);
       setClientes(res.data);
     } catch (e) {
@@ -253,6 +266,23 @@ export default function Clientes({ usuario }) {
             </button>
           ))}
         </div>
+        
+        {usuario?.rol === 'ADMIN' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>Vendedor:</span>
+            <select
+              style={{ ...selectStyle, width: '200px', padding: '6px 10px', height: '36px', fontSize: '0.85rem' }}
+              value={filtroVendedor}
+              onChange={(e) => setFiltroVendedor(e.target.value)}
+            >
+              <option value="">Todos los vendedores</option>
+              {vendedores.map(v => (
+                <option key={v.id} value={v.id}>{v.nombre} {v.apellido} {v.rol === 'ADMIN' ? '(Admin)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="search-container" style={{ flex: 1, maxWidth: '420px' }}>
           <span className="search-icon-inside">🔍</span>
           <input
