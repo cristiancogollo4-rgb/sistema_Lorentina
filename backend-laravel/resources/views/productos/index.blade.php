@@ -3,20 +3,27 @@
 @section('content')
 
 <div class="container">
-    <h2>Catálogo de calzado Lorentina</h2>
+    <div class="section-head">
+        <div>
+            <h2>Catálogo de calzado Lorentina</h2>
+            <p>Explora los productos disponibles de la fábrica.</p>
+        </div>
 
-    <p>
-        Explora los productos disponibles de la fábrica de calzado.
-    </p>
+        <a href="{{ route('carrito.ver') }}" class="btn btn-outline">Ver carrito</a>
+    </div>
 
     <div class="grid">
         @forelse($productos as $producto)
             <div class="card">
-                @if($producto->imagen)
-                    <img src="{{ asset('images/' . $producto->imagen) }}" alt="{{ $producto->nombre_modelo }}">
-                @else
-                    <img src="{{ asset('images/default-shoe.jpg') }}" alt="Calzado Lorentina">
-                @endif
+                <div class="card-img">
+                    <span class="tag">{{ $producto->tipo ?? 'Calzado' }}</span>
+
+                    @if($producto->imagen)
+                        <img src="{{ asset('images/' . $producto->imagen) }}" alt="{{ $producto->nombre_modelo }}">
+                    @else
+                        <img src="{{ asset('images/default-shoe.jpg') }}" alt="Calzado Lorentina">
+                    @endif
+                </div>
 
                 <div class="card-content">
                     <h3>{{ $producto->nombre_modelo }}</h3>
@@ -25,32 +32,31 @@
                         {{ $producto->descripcion ?? 'Producto de calzado fabricado por Lorentina.' }}
                     </p>
 
-                    <p>
-                        <strong>Referencia:</strong> {{ $producto->referencia }}
-                    </p>
+                    <div class="meta">
+                        <span>Ref: {{ $producto->referencia ?? 'N/A' }}</span>
+                        <span>{{ $producto->color ?? 'Sin color' }}</span>
+                        <span>{{ $producto->tipo ?? 'Calzado' }}</span>
+                    </div>
 
-                    <p>
-                        <strong>Color:</strong> {{ $producto->color }}
-                    </p>
+                    <div class="price-row">
+                        <p class="price">
+                            ${{ number_format($producto->precio_detal, 0, ',', '.') }}
+                        </p>
 
-                    <p>
-                        <strong>Tipo:</strong> {{ $producto->tipo }}
-                    </p>
-
-                    <p class="price">
-                        ${{ number_format($producto->precio_detal, 0, ',', '.') }}
-                    </p>
-
-                    <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
-                        @csrf
-                        <button class="btn" type="submit">
-                            Agregar al carrito
-                        </button>
-                    </form>
+                        <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
+                            @csrf
+                            <button class="btn" type="submit">
+                                Agregar al carrito
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         @empty
-            <p>No hay productos disponibles.</p>
+            <div class="empty-box">
+                <h3>No hay productos disponibles</h3>
+                <p>Agrega productos de prueba para visualizar el catálogo.</p>
+            </div>
         @endforelse
     </div>
 
