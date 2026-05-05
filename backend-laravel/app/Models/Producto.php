@@ -20,6 +20,7 @@ class Producto extends Model
         'precio_mayor',
         'costo_produccion',
         'activo',
+        'imagen',
         'created_at',
     ];
 
@@ -33,6 +34,7 @@ class Producto extends Model
             'precio_mayor' => 'float',
             'costo_produccion' => 'float',
             'activo' => 'boolean',
+            'imagen' => 'string',
             'created_at' => 'datetime',
         ];
     }
