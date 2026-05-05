@@ -48,7 +48,9 @@
     <section class="system-overview">
         <div class="overview-card">
             <div class="overview-icon">🛒</div>
+
             <h3>Tienda virtual</h3>
+
             <p>
                 Presenta los modelos de calzado disponibles, permite consultar
                 precios, visualizar imágenes y agregar productos al carrito.
@@ -57,7 +59,9 @@
 
         <div class="overview-card">
             <div class="overview-icon">📦</div>
+
             <h3>Inventario y stock</h3>
+
             <p>
                 Apoya el control del inventario por referencia, color, tipo,
                 talla y sucursal, facilitando una gestión más clara del stock.
@@ -66,7 +70,9 @@
 
         <div class="overview-card">
             <div class="overview-icon">🏭</div>
+
             <h3>Producción</h3>
+
             <p>
                 Permite hacer seguimiento a órdenes de fabricación, responsables,
                 estados de producción y trazabilidad de cada proceso.
@@ -146,19 +152,32 @@
                         <p class="price">
                             ${{ number_format($producto->precio_detal, 0, ',', '.') }}
                         </p>
-
-                        <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
-                            @csrf
-                            <button class="btn" type="submit">
-                                Agregar
-                            </button>
-                        </form>
                     </div>
+
+                    <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
+                        @csrf
+
+                        <div class="quantity-box">
+                            <label>Cantidad</label>
+                            <input type="number" name="cantidad" value="1" min="1">
+                        </div>
+
+                        <button class="btn" type="submit">
+                            Agregar al carrito
+                        </button>
+                    </form>
+
+                    <br>
+
+                    <a href="{{ route('productos.show', $producto->id) }}" class="btn btn-outline">
+                        Ver detalle
+                    </a>
                 </div>
             </div>
         @empty
             <div class="empty-box">
                 <h3>No hay productos destacados todavía</h3>
+
                 <p>
                     Cuando registres productos activos, aparecerán en esta sección.
                 </p>

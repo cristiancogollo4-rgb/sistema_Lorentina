@@ -9,14 +9,18 @@
             <p>Explora los productos disponibles de la fábrica.</p>
         </div>
 
-        <a href="{{ route('carrito.ver') }}" class="btn btn-outline">Ver carrito</a>
+        <a href="{{ route('carrito.ver') }}" class="btn btn-outline">
+            Ver carrito
+        </a>
     </div>
 
     <div class="grid">
         @forelse($productos as $producto)
             <div class="card">
                 <div class="card-img">
-                    <span class="tag">{{ $producto->tipo ?? 'Calzado' }}</span>
+                    <span class="tag">
+                        {{ $producto->tipo ?? 'Calzado' }}
+                    </span>
 
                     @if($producto->imagen)
                         <img src="{{ asset('images/' . $producto->imagen) }}" alt="{{ $producto->nombre_modelo }}">
@@ -42,20 +46,32 @@
                         <p class="price">
                             ${{ number_format($producto->precio_detal, 0, ',', '.') }}
                         </p>
-
-                        <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
-                            @csrf
-                            <button class="btn" type="submit">
-                                Agregar al carrito
-                            </button>
-                        </form>
                     </div>
+
+                    <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
+                        @csrf
+
+                        <div class="quantity-box">
+                            <label>Cantidad</label>
+                            <input type="number" name="cantidad" value="1" min="1">
+                        </div>
+
+                        <button class="btn" type="submit">
+                            Agregar al carrito
+                        </button>
+                    </form>
+
+                    <br>
+
+                    <a href="{{ route('productos.show', $producto->id) }}" class="btn btn-outline">
+                        Ver detalle
+                    </a>
                 </div>
             </div>
         @empty
             <div class="empty-box">
                 <h3>No hay productos disponibles</h3>
-                <p>Agrega productos de prueba para visualizar el catálogo.</p>
+                <p>Agrega productos desde el módulo administrativo para visualizar el catálogo.</p>
             </div>
         @endforelse
     </div>

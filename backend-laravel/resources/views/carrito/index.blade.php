@@ -9,7 +9,9 @@
             <p>Revisa los productos seleccionados antes de continuar.</p>
         </div>
 
-        <a href="{{ route('productos.index') }}" class="btn btn-outline">Seguir comprando</a>
+        <a href="{{ route('productos.index') }}" class="btn btn-outline">
+            Seguir comprando
+        </a>
     </div>
 
     @if(count($carrito) > 0)
@@ -55,7 +57,21 @@
                             </td>
 
                             <td>
-                                {{ $item['cantidad'] }}
+                                <form action="{{ route('carrito.actualizar', $item['id']) }}" method="POST" class="cart-quantity-form">
+                                    @csrf
+
+                                    <input 
+                                        type="number" 
+                                        name="cantidad" 
+                                        value="{{ $item['cantidad'] }}" 
+                                        min="1"
+                                        class="cart-quantity-input"
+                                    >
+
+                                    <button class="btn btn-outline" type="submit">
+                                        Actualizar
+                                    </button>
+                                </form>
                             </td>
 
                             <td>
@@ -65,6 +81,7 @@
                             <td>
                                 <form action="{{ route('carrito.eliminar', $item['id']) }}" method="POST">
                                     @csrf
+
                                     <button class="btn btn-outline" type="submit">
                                         Eliminar
                                     </button>
@@ -84,6 +101,7 @@
 
             <form action="{{ route('carrito.vaciar') }}" method="POST">
                 @csrf
+
                 <button class="btn btn-outline" type="submit">
                     Vaciar carrito
                 </button>
