@@ -32,16 +32,22 @@
             </div>
         </div>
 
-        <div class="hero-card">
-            <h3>¿Qué soluciona Lorentina?</h3>
+        <div>
+            <div class="hero-logo-box">
+                <img src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Logo Lorentina">
+            </div>
 
-            <ul>
-                <li>Centraliza productos, stock, ventas y producción.</li>
-                <li>Reduce errores del manejo manual en Excel, WhatsApp o papel.</li>
-                <li>Permite visualizar el estado de las órdenes de fabricación.</li>
-                <li>Facilita el control del inventario por referencias y sucursales.</li>
-                <li>Conecta la parte comercial con la operación interna de la fábrica.</li>
-            </ul>
+            <div class="hero-card">
+                <h3>¿Qué soluciona Lorentina?</h3>
+
+                <ul>
+                    <li>Centraliza productos, stock, ventas y producción.</li>
+                    <li>Reduce errores del manejo manual en Excel, WhatsApp o papel.</li>
+                    <li>Permite visualizar el estado de las órdenes de fabricación.</li>
+                    <li>Facilita el control del inventario por referencias y sucursales.</li>
+                    <li>Conecta la parte comercial con la operación interna de la fábrica.</li>
+                </ul>
+            </div>
         </div>
     </section>
 

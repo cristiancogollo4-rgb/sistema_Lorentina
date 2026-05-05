@@ -10,7 +10,7 @@
         </div>
 
         <a href="{{ route('carrito.ver') }}" class="btn btn-outline">
-            Ver carrito
+            🛒 Ver carrito
         </a>
     </div>
 
@@ -76,9 +76,52 @@
         @endforelse
     </div>
 
-    <div class="pagination">
-        {{ $productos->links() }}
-    </div>
+    @if ($productos->hasPages())
+        <div class="custom-pagination">
+            @if ($productos->onFirstPage())
+                <span class="page-disabled">Anterior</span>
+            @else
+                <a href="{{ $productos->previousPageUrl() }}">Anterior</a>
+            @endif
+
+            @php
+                $currentPage = $productos->currentPage();
+                $lastPage = $productos->lastPage();
+                $start = max($currentPage - 2, 1);
+                $end = min($currentPage + 2, $lastPage);
+            @endphp
+
+            @if($start > 1)
+                <a href="{{ $productos->url(1) }}">1</a>
+
+                @if($start > 2)
+                    <span class="page-dots">...</span>
+                @endif
+            @endif
+
+            @for($page = $start; $page <= $end; $page++)
+                @if ($page == $currentPage)
+                    <span class="page-active">{{ $page }}</span>
+                @else
+                    <a href="{{ $productos->url($page) }}">{{ $page }}</a>
+                @endif
+            @endfor
+
+            @if($end < $lastPage)
+                @if($end < $lastPage - 1)
+                    <span class="page-dots">...</span>
+                @endif
+
+                <a href="{{ $productos->url($lastPage) }}">{{ $lastPage }}</a>
+            @endif
+
+            @if ($productos->hasMorePages())
+                <a href="{{ $productos->nextPageUrl() }}">Siguiente</a>
+            @else
+                <span class="page-disabled">Siguiente</span>
+            @endif
+        </div>
+    @endif
 </div>
 
 @endsection

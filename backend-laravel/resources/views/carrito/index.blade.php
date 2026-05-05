@@ -5,7 +5,7 @@
 <div class="container">
     <div class="section-head">
         <div>
-            <h2>Carrito de compras</h2>
+            <h2>🛒 Carrito de compras</h2>
             <p>Revisa los productos seleccionados antes de continuar.</p>
         </div>
 
@@ -109,8 +109,11 @@
         </div>
     @else
         <div class="empty-box">
-            <h3>Tu carrito está vacío</h3>
-            <p>Agrega productos del catálogo para verlos aquí.</p>
+            <h3>🛒 Tu carrito está vacío</h3>
+
+            <p>
+                Agrega productos del catálogo para verlos aquí.
+            </p>
 
             <a href="{{ route('productos.index') }}" class="btn">
                 Ver productos
