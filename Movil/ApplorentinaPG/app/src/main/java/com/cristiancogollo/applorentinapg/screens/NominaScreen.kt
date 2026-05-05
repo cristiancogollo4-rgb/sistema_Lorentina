@@ -168,8 +168,9 @@ fun NominaItemCard(item: DetalleNominaItem, viewModel: NominaViewModel) {
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                val categoriaTexto = item.categoria?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
                 Text(
-                    text = "${item.referencia} (${item.categoria})",
+                    text = "${item.referencia}$categoriaTexto",
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )

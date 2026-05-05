@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
+use App\Models\InventarioMovimiento;
+use App\Models\Producto;
 use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,6 +92,7 @@ class StockController extends Controller
                 );
 
                 $this->insertarRegistros($todosLosRegistros);
+                $this->sincronizarProductosDesdeStock($registrosTotales);
             });
 
             $insertados = count($registros) + $c5;
@@ -107,6 +110,114 @@ class StockController extends Controller
 
             return response()->json(['error' => 'Error procesando el Excel'], 500);
         }
+    }
+
+    public function transferir(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'referencia' => ['required', 'string'],
+            'color' => ['required', 'string'],
+            'tipo' => ['required', 'string'],
+            'origen' => ['required', 'in:CABECERA,FABRICA'],
+            'destino' => ['required', 'in:CABECERA,FABRICA', 'different:origen'],
+            'cantidades' => ['required', 'array'],
+            'cantidades.*' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $cantidades = [];
+        foreach (range(35, 42) as $talla) {
+            $cantidades[$talla] = (int) ($data['cantidades'][(string) $talla] ?? $data['cantidades'][$talla] ?? 0);
+        }
+
+        if (array_sum($cantidades) <= 0) {
+            return response()->json(['error' => 'Debes indicar al menos un par para mover.'], 422);
+        }
+
+        DB::transaction(function () use ($data, $cantidades): void {
+            $origen = InventarioZapato::query()
+                ->where('referencia', $data['referencia'])
+                ->where('color', $data['color'])
+                ->where('tipo', $data['tipo'])
+                ->where('sucursal', $data['origen'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $origen) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stock' => 'No existe stock en la sucursal de origen para este producto.',
+                ]);
+            }
+
+            foreach ($cantidades as $talla => $cantidad) {
+                $campo = "t{$talla}";
+                if ((int) ($origen->{$campo} ?? 0) < $cantidad) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'stock' => "No hay suficientes pares en {$data['origen']} para la talla {$talla}.",
+                    ]);
+                }
+            }
+
+            $destino = InventarioZapato::query()->firstOrNew([
+                'referencia' => $data['referencia'],
+                'color' => $data['color'],
+                'tipo' => $data['tipo'],
+                'sucursal' => $data['destino'],
+            ]);
+
+            $movimientos = [];
+            $ahora = now();
+            foreach ($cantidades as $talla => $cantidad) {
+                $campo = "t{$talla}";
+                $origen->{$campo} = (int) ($origen->{$campo} ?? 0) - $cantidad;
+                $destino->{$campo} = (int) ($destino->{$campo} ?? 0) + $cantidad;
+
+                if ($cantidad > 0) {
+                    $movimientos[] = [
+                        'tipo_movimiento' => 'TRANSFER_OUT',
+                        'orden_produccion_id' => null,
+                        'venta_id' => null,
+                        'referencia' => (string) $data['referencia'],
+                        'color' => (string) $data['color'],
+                        'tipo' => (string) $data['tipo'],
+                        'sucursal' => (string) $data['origen'],
+                        'talla' => (int) $talla,
+                        'cantidad' => (int) $cantidad,
+                        'usuario_id' => null,
+                        'created_at' => $ahora,
+                    ];
+
+                    $movimientos[] = [
+                        'tipo_movimiento' => 'TRANSFER_IN',
+                        'orden_produccion_id' => null,
+                        'venta_id' => null,
+                        'referencia' => (string) $data['referencia'],
+                        'color' => (string) $data['color'],
+                        'tipo' => (string) $data['tipo'],
+                        'sucursal' => (string) $data['destino'],
+                        'talla' => (int) $talla,
+                        'cantidad' => (int) $cantidad,
+                        'usuario_id' => null,
+                        'created_at' => $ahora,
+                    ];
+                }
+            }
+
+            if ($movimientos !== []) {
+                InventarioMovimiento::query()->insert($movimientos);
+            }
+
+            $origen->total = $this->sumarTotalInventario($origen);
+            $origen->updated_at = now();
+            $origen->save();
+
+            $destino->total = $this->sumarTotalInventario($destino);
+            $destino->updated_at = now();
+            $destino->save();
+
+            $this->recalcularTotalProducto($data['referencia'], $data['color'], $data['tipo']);
+        });
+
+        return response()->json(['mensaje' => 'Stock transferido correctamente.']);
     }
 
     private function buscarHoja(XlsxWorkbook $workbook, string $nombre): ?string
@@ -435,5 +546,81 @@ class StockController extends Controller
         }
 
         return $insertados;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $registrosTotales
+     */
+    private function sincronizarProductosDesdeStock(array $registrosTotales): void
+    {
+        foreach ($registrosTotales as $registro) {
+            if (((int) ($registro['total'] ?? 0)) <= 0) {
+                continue;
+            }
+
+            $referencia = trim((string) ($registro['referencia'] ?? ''));
+            $color = trim((string) ($registro['color'] ?? 'UNICO'));
+            $tipo = trim((string) ($registro['tipo'] ?? 'PLANA'));
+
+            if ($referencia === '') {
+                continue;
+            }
+
+            Producto::query()->updateOrCreate(
+                [
+                    'referencia' => $referencia,
+                    'color' => $color,
+                    'tipo' => $tipo,
+                ],
+                [
+                    'nombre_modelo' => trim($referencia . ' - ' . $color),
+                    'descripcion' => "Producto sincronizado desde stock {$tipo}",
+                    'precio_detal' => 0,
+                    'precio_mayor' => 0,
+                    'costo_produccion' => 0,
+                    'activo' => true,
+                ]
+            );
+        }
+    }
+
+    private function recalcularTotalProducto(string $referencia, string $color, string $tipo): void
+    {
+        $cabecera = InventarioZapato::query()
+            ->where('referencia', $referencia)
+            ->where('color', $color)
+            ->where('tipo', $tipo)
+            ->where('sucursal', 'CABECERA')
+            ->first();
+        $fabrica = InventarioZapato::query()
+            ->where('referencia', $referencia)
+            ->where('color', $color)
+            ->where('tipo', $tipo)
+            ->where('sucursal', 'FABRICA')
+            ->first();
+
+        $total = InventarioZapato::query()->firstOrNew([
+            'referencia' => $referencia,
+            'color' => $color,
+            'tipo' => $tipo,
+            'sucursal' => 'TOTAL',
+        ]);
+
+        foreach (range(35, 42) as $talla) {
+            $campo = "t{$talla}";
+            $total->{$campo} = (int) ($cabecera?->{$campo} ?? 0) + (int) ($fabrica?->{$campo} ?? 0);
+        }
+
+        $total->total = $this->sumarTotalInventario($total);
+        $total->updated_at = now();
+        $total->save();
+    }
+
+    private function sumarTotalInventario(InventarioZapato $inventario): int
+    {
+        return array_sum(array_map(
+            fn (int $talla) => (int) ($inventario->{"t{$talla}"} ?? 0),
+            range(35, 42)
+        ));
     }
 }

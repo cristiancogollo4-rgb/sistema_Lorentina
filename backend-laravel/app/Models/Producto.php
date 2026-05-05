@@ -13,6 +13,9 @@ class Producto extends Model
     protected $fillable = [
         'nombre_modelo',
         'descripcion',
+        'referencia',
+        'color',
+        'tipo',
         'precio_detal',
         'precio_mayor',
         'costo_produccion',
@@ -23,6 +26,9 @@ class Producto extends Model
     protected function casts(): array
     {
         return [
+            'referencia' => 'string',
+            'color' => 'string',
+            'tipo' => 'string',
             'precio_detal' => 'float',
             'precio_mayor' => 'float',
             'costo_produccion' => 'float',

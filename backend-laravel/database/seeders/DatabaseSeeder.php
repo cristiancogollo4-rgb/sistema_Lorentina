@@ -14,6 +14,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             TarifaCategoriaSeeder::class,
+            ClienteSeeder::class,
+            OrdenProduccionSeeder::class,
+            LorentinaExcelSeeder::class,
         ]);
     }
 }

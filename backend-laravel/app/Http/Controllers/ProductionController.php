@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InventarioZapato;
+use App\Models\DetalleVenta;
+use App\Models\InventarioMovimiento;
 use App\Models\OrdenProduccion;
+use App\Models\Producto;
 use App\Models\TarifaCategoria;
 use App\Models\User;
+use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductionController extends Controller
 {
@@ -27,7 +33,8 @@ class ProductionController extends Controller
         $data = $request->validate([
             'referencia' => ['required', 'string'],
             'color' => ['required', 'string'],
-            'categoria' => ['nullable', 'string'],
+            'categoria' => ['required', 'string'],
+            'isEspecial' => ['nullable', 'boolean'],
             'materiales' => ['required', 'string'],
             'observacion' => ['nullable', 'string'],
             'destino' => ['required', 'string'],
@@ -50,8 +57,9 @@ class ProductionController extends Controller
             't44' => ['nullable', 'numeric'],
         ]);
 
+        $isEspecial = filter_var($data['isEspecial'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $categoria = $data['categoria'] ?? 'ROMANA';
-        $precios = $this->resolverPrecios($categoria, $data);
+        $precios = $this->resolverPrecios($isEspecial, $categoria, $data);
 
         $totalPares = 0;
         $tallas = [];
@@ -89,53 +97,180 @@ class ProductionController extends Controller
 
     public function tablero(Request $request): JsonResponse
     {
-        $rango = $request->query('rango', 'custom');
-        $fechaInicio = $request->query('inicio');
-        $fechaFin = $request->query('fin');
-        
-        $queryOrdenes = OrdenProduccion::query()->where('estado', '!=', 'TERMINADO');
-        $qCreadas = OrdenProduccion::query();
-        $qTerminadas = OrdenProduccion::query()->where('estado', 'TERMINADO');
+        try {
+            $vendedorId = $request->query('vendedor_id');
+            $rango = $request->query('rango', 'produccion');
+            $fechaInicio = $request->query('inicio');
+            $fechaFin = $request->query('fin');
+            $tipoFiltro = $request->query('tipo_filtro', 'activas');
+            
+            $queryOrdenes = OrdenProduccion::with('cliente:id,nombre');
 
-        if ($rango === 'semana') {
-            $inicio = now()->startOfWeek();
-            $queryOrdenes->where('fecha_inicio', '>=', $inicio);
-            $qCreadas->where('fecha_inicio', '>=', $inicio);
-            $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
-        } elseif ($rango === 'mes') {
-            $inicio = now()->startOfMonth();
-            $queryOrdenes->where('fecha_inicio', '>=', $inicio);
-            $qCreadas->where('fecha_inicio', '>=', $inicio);
-            $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
-        } elseif ($rango === 'custom' && $fechaInicio && $fechaFin) {
-            $dInicio = \Carbon\Carbon::parse($fechaInicio)->startOfDay();
-            $dFin = \Carbon\Carbon::parse($fechaFin)->endOfDay();
-            $queryOrdenes->whereBetween('fecha_inicio', [$dInicio, $dFin]);
-            $qCreadas->whereBetween('fecha_inicio', [$dInicio, $dFin]);
-            $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
+            if ($tipoFiltro === 'activas') {
+                $queryOrdenes->whereNotIn('estado', ['TERMINADO', 'EN_STOCK']);
+            } elseif ($tipoFiltro === 'completadas') {
+                $queryOrdenes->whereIn('estado', ['TERMINADO', 'EN_STOCK']);
+            } elseif ($tipoFiltro === 'clientes') {
+                $queryOrdenes->whereNotNull('cliente_id');
+            } elseif ($tipoFiltro === 'stock') {
+                $queryOrdenes->whereNull('cliente_id');
+            }
+            
+            $qCreadas = OrdenProduccion::query();
+            $qTerminadas = OrdenProduccion::query()->where('estado', 'EN_STOCK');
+
+            if ($rango === 'semana') {
+                $inicio = now()->startOfWeek();
+                $queryOrdenes->where('fecha_inicio', '>=', $inicio);
+                $qCreadas->where('fecha_inicio', '>=', $inicio);
+                $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
+            } elseif ($rango === 'mes') {
+                $inicio = now()->startOfMonth();
+                $queryOrdenes->where('fecha_inicio', '>=', $inicio);
+                $qCreadas->where('fecha_inicio', '>=', $inicio);
+                $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
+            } elseif ($rango === 'custom' && $fechaInicio && $fechaFin) {
+                $dInicio = \Carbon\Carbon::parse($fechaInicio)->startOfDay();
+                $dFin = \Carbon\Carbon::parse($fechaFin)->endOfDay();
+                $queryOrdenes->whereBetween('fecha_inicio', [$dInicio, $dFin]);
+                $qCreadas->whereBetween('fecha_inicio', [$dInicio, $dFin]);
+                $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
+            }
+
+            $ordenes = $queryOrdenes->orderByDesc('id')
+                ->get()
+                ->map(fn (OrdenProduccion $orden) => $this->formatOrden($orden));
+
+            $empleados = User::query()
+                ->where('rol', '!=', 'ADMIN')
+                ->where('activo', true)
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'apellido', 'rol']);
+
+            $paresFabricar = (int) $qCreadas->sum('total_pares');
+            $paresStock = (int) $qTerminadas->sum('total_pares');
+            $inicioSemana = now()->startOfWeek();
+            $inicioMes = now()->startOfMonth();
+            
+            $ventasSemanaQuery = Venta::query()->where('fecha_venta', '>=', $inicioSemana);
+            $ventasMesQuery = Venta::query()->where('fecha_venta', '>=', $inicioMes);
+            
+            if ($vendedorId) {
+                $ventasSemanaQuery->where('vendedor_id', (int) $vendedorId);
+                $ventasMesQuery->where('vendedor_id', (int) $vendedorId);
+            }
+
+            $ventasSemana = (float) $ventasSemanaQuery->sum('total');
+            $ventasMes = (float) $ventasMesQuery->sum('total');
+
+            $ventasVendedorBase = Venta::query();
+            if ($vendedorId) {
+                $ventasVendedorBase->where('vendedor_id', (int) $vendedorId);
+            }
+
+            $inicioSemanaAnterior = now()->startOfWeek()->subWeek();
+            $finSemanaAnterior = now()->startOfWeek();
+
+            // Optimización: Agrupar métricas de ventas en menos consultas
+            $metricasVentas = (clone $ventasVendedorBase)
+                ->selectRaw("
+                    SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_semana,
+                    SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_mes,
+                    SUM(CASE WHEN fecha_venta >= ? AND fecha_venta < ? THEN total ELSE 0 END) as ventas_semana_anterior,
+                    COUNT(CASE WHEN canal_venta = 'ONLINE' THEN 1 END) as ventas_sin_despachar,
+                    COUNT(DISTINCT CASE WHEN canal_venta = 'ONLINE' THEN cliente_id END) as clientes_apartados
+                ", [$inicioSemana, $inicioMes, $inicioSemanaAnterior, $finSemanaAnterior])
+                ->first();
+
+            \Log::info("Métricas de Ventas detectadas:", [
+                'vendedor_id' => $vendedorId,
+                'semana' => $metricasVentas->ventas_semana ?? 0,
+                'mes' => $metricasVentas->ventas_mes ?? 0
+            ]);
+
+            $ventasSemanaVendedor = (float) ($metricasVentas->ventas_semana ?? 0);
+            $ventasMesVendedor = (float) ($metricasVentas->ventas_mes ?? 0);
+            $ventasSemanaAnterior = (float) ($metricasVentas->ventas_semana_anterior ?? 0);
+            $clientesConApartados = (int) ($metricasVentas->clientes_apartados ?? 0);
+            $ventasSinDespachar = (int) ($metricasVentas->ventas_sin_despachar ?? 0);
+
+            $caidaVentasSemana = $ventasSemanaAnterior > 0
+                ? (($ventasSemanaVendedor - $ventasSemanaAnterior) / $ventasSemanaAnterior) * 100
+                : 0;
+
+            // Top Productos con Join optimizado
+            $topProductos = [];
+            try {
+                $topProductos = DB::table('detalle_ventas')
+                    ->join('ventas', 'detalle_ventas.venta_id', '=', 'ventas.id')
+                    ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
+                    ->select('detalle_ventas.referencia', 'detalle_ventas.color', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido'))
+                    ->groupBy('detalle_ventas.referencia', 'detalle_ventas.color')
+                    ->orderByDesc('total_vendido')
+                    ->limit(5)
+                    ->get();
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en topProductos: " . $e->getMessage());
+            }
+
+            // Baja rotación (Consulta simple a productos)
+            $bajaRotacionAltoMargen = [];
+            try {
+                $bajaRotacionAltoMargen = DB::table('productos')
+                    ->select('referencia', 'color', 'precio_detal', 'costo_produccion')
+                    ->whereRaw('(precio_detal - costo_produccion) > 0')
+                    ->orderByRaw('(precio_detal - costo_produccion) DESC')
+                    ->limit(5)
+                    ->get();
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en bajaRotacion: " . $e->getMessage());
+            }
+
+            // Alerta cliente importante (Una sola consulta)
+            $alertaClienteImportante = null;
+            try {
+                $clienteTop = DB::table('ventas')
+                    ->join('clientes', 'ventas.cliente_id', '=', 'clientes.id')
+                    ->select('ventas.cliente_id', 'clientes.nombre', DB::raw('SUM(ventas.total) as total_acumulado'), DB::raw('MAX(ventas.fecha_venta) as ultima_fecha'))
+                    ->when($vendedorId, fn ($q) => $q->where('ventas.vendedor_id', (int) $vendedorId))
+                    ->groupBy('ventas.cliente_id', 'clientes.nombre')
+                    ->orderByDesc('total_acumulado')
+                    ->first();
+
+                if ($clienteTop) {
+                    $alertaClienteImportante = [
+                        'clienteId' => $clienteTop->cliente_id,
+                        'cliente' => $clienteTop->nombre,
+                        'diasSinCompra' => $clienteTop->ultima_fecha ? now()->diffInDays(\Carbon\Carbon::parse($clienteTop->ultima_fecha)) : null,
+                    ];
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Fallo en alertaCliente: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'ordenes' => $ordenes,
+                'empleados' => $empleados,
+                'vendedores' => User::where('rol', 'VENDEDOR')->where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']),
+                'stats' => [
+                    'paresFabricar' => $paresFabricar,
+                    'paresStock' => $paresStock,
+                    'ventasSemana' => $ventasSemana,
+                    'ventasMes' => $ventasMes,
+                    'ventasSemanaVendedor' => $ventasSemanaVendedor,
+                    'ventasMesVendedor' => $ventasMesVendedor,
+                    'clientesConApartados' => $clientesConApartados,
+                    'ventasSinDespachar' => $ventasSinDespachar,
+                    'caidaVentasSemana' => $caidaVentasSemana,
+                    'topProductos' => $topProductos,
+                    'bajaRotacionAltoMargen' => $bajaRotacionAltoMargen,
+                    'clienteImportanteSinCompra' => $alertaClienteImportante,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error crítico en tablero: " . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $ordenes = $queryOrdenes->orderByDesc('id')
-            ->get()
-            ->map(fn (OrdenProduccion $orden) => $this->formatOrden($orden));
-
-        $empleados = User::query()
-            ->where('rol', '!=', 'ADMIN')
-            ->where('activo', true)
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'apellido', 'rol']);
-
-        $paresFabricar = (int) $qCreadas->sum('total_pares');
-        $paresStock = (int) $qTerminadas->sum('total_pares');
-
-        return response()->json([
-            'ordenes' => $ordenes,
-            'empleados' => $empleados,
-            'stats' => [
-                'paresFabricar' => $paresFabricar,
-                'paresStock' => $paresStock
-            ]
-        ]);
     }
 
     public function asignar(Request $request): JsonResponse
@@ -206,12 +341,14 @@ class ProductionController extends Controller
             $orden->update(['estado' => 'EN_EMPLANTILLADO', 'fecha_fin_soladura' => $ahora]);
             $nuevoEstado = 'EN_EMPLANTILLADO';
         } elseif ($rol === 'EMPLANTILLADOR') {
+            $estadoFinal = $this->debeEsperarIngresoStock($orden) ? 'LISTO_PARA_STOCK' : 'TERMINADO';
+
             $orden->update([
-                'estado' => 'TERMINADO',
+                'estado' => $estadoFinal,
                 'fecha_fin_emplantillado' => $ahora,
                 'fecha_fin_terminado' => $ahora,
             ]);
-            $nuevoEstado = 'TERMINADO';
+            $nuevoEstado = $estadoFinal;
         } else {
             return response()->json(['error' => 'Rol no válido'], 400);
         }
@@ -219,6 +356,64 @@ class ProductionController extends Controller
         return response()->json([
             'mensaje' => '¡Tarea terminada con éxito!',
             'nuevoEstado' => $nuevoEstado,
+        ]);
+    }
+
+    public function pasarAStock(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ordenId' => ['required', 'integer'],
+        ]);
+
+        $orden = OrdenProduccion::findOrFail($data['ordenId']);
+
+        if (! $this->debeEsperarIngresoStock($orden)) {
+            return response()->json([
+                'error' => 'Solo las ordenes destinadas a stock se pueden ingresar desde este flujo.',
+            ], 422);
+        }
+
+        if ($orden->estado !== 'LISTO_PARA_STOCK') {
+            return response()->json([
+                'error' => 'La orden todavia no esta lista para pasar a stock.',
+            ], 422);
+        }
+
+        if ((int) $orden->t34 > 0 || (int) $orden->t43 > 0 || (int) $orden->t44 > 0) {
+            return response()->json([
+                'error' => 'La tabla de inventario actual solo soporta tallas 35 a 42. Ajusta primero esas tallas para esta orden.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($orden): void {
+            $tipo = $this->inferirTipoProducto((string) $orden->referencia);
+
+            Producto::query()->updateOrCreate(
+                [
+                    'referencia' => $orden->referencia,
+                    'color' => $orden->color,
+                    'tipo' => $tipo,
+                ],
+                [
+                    'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
+                    'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
+                    'precio_detal' => 0,
+                    'precio_mayor' => 0,
+                    'costo_produccion' => 0,
+                    'activo' => true,
+                ]
+            );
+
+            $this->sumarOrdenAInventario($orden, 'FABRICA', $tipo);
+            $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
+            $this->registrarMovimientoIngresoOrden($orden, 'FABRICA', $tipo);
+
+            $orden->update(['estado' => 'EN_STOCK']);
+        });
+
+        return response()->json([
+            'mensaje' => 'Orden ingresada a stock correctamente.',
+            'nuevoEstado' => 'EN_STOCK',
         ]);
     }
 
@@ -297,9 +492,9 @@ class ProductionController extends Controller
         ]);
     }
 
-    private function resolverPrecios(string $categoria, array $data): array
+    private function resolverPrecios(bool $isEspecial, string $categoria, array $data): array
     {
-        if ($categoria === 'ESPECIAL') {
+        if ($isEspecial) {
             return [
                 'corte' => (int) ($data['precioManualCorte'] ?? 0),
                 'armado' => (int) ($data['precioManualArmado'] ?? 0),
@@ -320,6 +515,82 @@ class ProductionController extends Controller
         ];
     }
 
+    private function debeEsperarIngresoStock(OrdenProduccion $orden): bool
+    {
+        return strtoupper((string) $orden->destino) === 'STOCK' && $orden->cliente_id === null;
+    }
+
+    private function inferirTipoProducto(string $referencia): string
+    {
+        $referencia = strtoupper(trim($referencia));
+
+        if (
+            str_starts_with($referencia, 'Z') ||
+            str_starts_with($referencia, 'LOLAS') ||
+            str_starts_with($referencia, 'LOLA') ||
+            str_contains($referencia, 'TENIS') ||
+            str_starts_with($referencia, 'P')
+        ) {
+            return 'PLATAFORMA';
+        }
+
+        return 'PLANA';
+    }
+
+    private function sumarOrdenAInventario(OrdenProduccion $orden, string $sucursal, string $tipo): void
+    {
+        $inventario = InventarioZapato::query()->firstOrNew([
+            'referencia' => $orden->referencia,
+            'color' => $orden->color,
+            'sucursal' => $sucursal,
+        ]);
+
+        $inventario->tipo = $tipo;
+
+        foreach (range(35, 42) as $talla) {
+            $campo = "t{$talla}";
+            $inventario->{$campo} = (int) ($inventario->{$campo} ?? 0) + (int) ($orden->{$campo} ?? 0);
+        }
+
+        $inventario->total = array_sum(array_map(
+            fn (int $talla) => (int) ($inventario->{"t{$talla}"} ?? 0),
+            range(35, 42)
+        ));
+        $inventario->updated_at = now();
+        $inventario->save();
+    }
+
+    private function registrarMovimientoIngresoOrden(OrdenProduccion $orden, string $sucursal, string $tipo): void
+    {
+        $movimientos = [];
+        $ahora = now();
+
+        foreach (range(35, 42) as $talla) {
+            $cantidad = (int) ($orden->{"t{$talla}"} ?? 0);
+            if ($cantidad <= 0) {
+                continue;
+            }
+
+            $movimientos[] = [
+                'tipo_movimiento' => 'IN',
+                'orden_produccion_id' => $orden->id,
+                'venta_id' => null,
+                'referencia' => (string) $orden->referencia,
+                'color' => (string) $orden->color,
+                'tipo' => $tipo,
+                'sucursal' => $sucursal,
+                'talla' => $talla,
+                'cantidad' => $cantidad,
+                'usuario_id' => null,
+                'created_at' => $ahora,
+            ];
+        }
+
+        if ($movimientos !== []) {
+            InventarioMovimiento::query()->insert($movimientos);
+        }
+    }
+
     private function formatOrden(OrdenProduccion $orden): array
     {
         return [
@@ -336,6 +607,8 @@ class ProductionController extends Controller
             'materiales' => $orden->materiales,
             'observacion' => $orden->observacion,
             'destino' => $orden->destino,
+            'clienteId' => $orden->cliente_id,
+            'clienteNombre' => $orden->cliente ? $orden->cliente->nombre : null,
             'cortadorId' => $orden->cortador_id,
             'armadorId' => $orden->armador_id,
             'costureroId' => $orden->costurero_id,
@@ -349,6 +622,7 @@ class ProductionController extends Controller
             'fechaFinEmplantillado' => optional($orden->fecha_fin_emplantillado)->toISOString(),
             'fechaFinTerminado' => optional($orden->fecha_fin_terminado)->toISOString(),
             'estado' => $orden->estado,
+            'puedePasarAStock' => $orden->estado === 'LISTO_PARA_STOCK' && $this->debeEsperarIngresoStock($orden),
             't34' => $orden->t34,
             't35' => $orden->t35,
             't36' => $orden->t36,

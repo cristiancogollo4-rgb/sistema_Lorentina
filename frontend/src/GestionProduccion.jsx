@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from './api';
+import LoadingState from './components/LoadingState';
 
 function GestionProduccion() {
+  const fechaLocalISO = (fecha = new Date()) => {
+    const offset = fecha.getTimezoneOffset() * 60000;
+    return new Date(fecha.getTime() - offset).toISOString().split('T')[0];
+  };
+
   const [ordenes, setOrdenes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
   const [stats, setStats] = useState({ paresFabricar: 0, paresStock: 0 });
@@ -11,9 +17,11 @@ function GestionProduccion() {
       const hoy = new Date();
       // Por defecto inicio del mes actual
       const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-      return primerDia.toISOString().split('T')[0];
+      return fechaLocalISO(primerDia);
   });
-  const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().split('T')[0]);
+  const [fechaFin, setFechaFin] = useState(() => fechaLocalISO(new Date()));
+  const [usarFiltroFechas, setUsarFiltroFechas] = useState(false);
+  const [tipoFiltro, setTipoFiltro] = useState('activas');
   const [cargando, setCargando] = useState(false);
   
   // MODALES
@@ -28,7 +36,13 @@ function GestionProduccion() {
   // 1. CARGA DE DATOS
   const cargarDatos = (esPolling = false) => {
     if (!esPolling) setCargando(true);
-    api.get(`/produccion/tablero?rango=custom&inicio=${fechaInicio}&fin=${fechaFin}`)
+    let url = usarFiltroFechas
+      ? `/produccion/tablero?rango=custom&inicio=${fechaInicio}&fin=${fechaFin}`
+      : '/produccion/tablero?rango=produccion';
+
+    if (tipoFiltro) url += `&tipo_filtro=${tipoFiltro}`;
+
+    api.get(url)
       .then(res => {
         setOrdenes(res.data.ordenes || []);
         setEmpleados(res.data.empleados || []);
@@ -43,7 +57,7 @@ function GestionProduccion() {
     // Aumentamos a 15 segundos para no saturar la red (especialmente con bases de datos en la nube como Supabase)
     const intervalo = setInterval(() => cargarDatos(true), 15000); 
     return () => clearInterval(intervalo);
-  }, [fechaInicio, fechaFin]);
+  }, [usarFiltroFechas, fechaInicio, fechaFin, tipoFiltro]);
 
   // --- FILTRADO ---
   const ordenesFiltradas = ordenes.filter(o => {
@@ -110,6 +124,21 @@ function GestionProduccion() {
     .catch(err => alert("Error al asignar"));
   };
 
+  const pasarAStock = (orden) => {
+    if (!window.confirm(`¿Pasar la orden ${orden.numeroOrden || orden.numero_orden} a stock?`)) return;
+
+    api.post('/produccion/pasar-a-stock', {
+      ordenId: orden.id,
+    })
+    .then((res) => {
+      cargarDatos();
+      alert(res.data?.mensaje || "Orden ingresada a stock");
+    })
+    .catch((err) => {
+      alert(err?.response?.data?.error || "No fue posible pasar la orden a stock");
+    });
+  };
+
   const renderBotonAccion = (orden) => {
     const estado = orden.estado || "";
     let idAsignado = null;
@@ -122,6 +151,15 @@ function GestionProduccion() {
     else if (estado === "EN_SOLADURA") { idAsignado = orden.soladorId; rolRequerido = "SOLADOR"; nombreEtapa = "Soladura"; }
     else if (estado === "EN_EMPLANTILLADO") { idAsignado = orden.emplantilladorId; rolRequerido = "EMPLANTILLADOR"; nombreEtapa = "Emplantillado"; }
 
+    if (orden.puedePasarAStock) {
+        return <button onClick={() => pasarAStock(orden)} style={{ background: '#2e7d32', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Pasar a Stock</button>;
+    }
+    if (estado === "EN_STOCK") {
+        return <span style={{ fontSize: '0.85rem', color: '#2e7d32', fontWeight: 'bold', border: '1px solid #2e7d32', padding:'4px 8px', borderRadius:'4px', background: '#e8f5e9' }}>En stock</span>;
+    }
+    if (estado === "TERMINADO") {
+        return <span style={{ fontSize: '0.85rem', color: '#5D4037', fontWeight: 'bold', border: '1px solid #5D4037', padding:'4px 8px', borderRadius:'4px', background: '#efebe9' }}>Entregado a Ventas</span>;
+    }
     if (!idAsignado && rolRequerido) {
         return <button onClick={() => abrirAsignar(orden, rolRequerido)} style={{ background: '#5D4037', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>👤 Asignar {nombreEtapa}</button>;
     }
@@ -156,6 +194,8 @@ function GestionProduccion() {
          </div>
       </div>
 
+      {cargando && <LoadingState mensaje="Cargando órdenes de producción..." />}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
             <h2 style={{ color: '#5D4037', margin: 0 }}>Control de Producción & Trazabilidad</h2>
@@ -172,17 +212,44 @@ function GestionProduccion() {
               <input 
                   type="date" 
                   value={fechaInicio} 
-                  onChange={e => setFechaInicio(e.target.value)}
+                  onChange={e => {
+                    setFechaInicio(e.target.value);
+                    setUsarFiltroFechas(true);
+                  }}
                   style={{ border: 'none', outline: 'none', background: 'transparent', padding: '8px 5px', color: '#334155', fontWeight: '500', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#64748b', marginLeft: '5px' }}>Hasta:</span>
               <input 
                   type="date" 
                   value={fechaFin} 
-                  onChange={e => setFechaFin(e.target.value)}
+                  onChange={e => {
+                    setFechaFin(e.target.value);
+                    setUsarFiltroFechas(true);
+                  }}
                   style={{ border: 'none', outline: 'none', background: 'transparent', padding: '8px 5px', color: '#334155', fontWeight: '500', cursor: 'pointer' }}
               />
           </div>
+          {usarFiltroFechas && (
+            <button
+              onClick={() => setUsarFiltroFechas(false)}
+              style={{ background: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', borderRadius: '8px', padding: '8px 10px', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Ver producción activa
+            </button>
+          )}
+
+          <select 
+              value={tipoFiltro} 
+              onChange={e => setTipoFiltro(e.target.value)}
+              className="search-input-premium"
+              style={{ width: '180px', paddingLeft: '15px', fontWeight: 'bold', color: '#5D4037' }}
+          >
+              <option value="activas">🟡 En Proceso (Activas)</option>
+              <option value="todas">📋 Todas las Órdenes</option>
+              <option value="completadas">✅ Ya Completadas</option>
+              <option value="clientes">👤 Pedidos con Cliente</option>
+              <option value="stock">📦 Pedidos para Stock</option>
+          </select>
 
           <select 
               value={filtroEmpleado} 
@@ -275,9 +342,51 @@ function GestionProduccion() {
 
       {modalHistorialOpen && ordenSeleccionada && (
         <div style={styles.overlay}>
-            <div style={{...styles.modal, width: '500px'}}>
-                <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px', color: '#5D4037' }}>Historial #{ordenSeleccionada.numeroOrden}</h3>
-                <div style={{ marginTop: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+            <div style={{...styles.modal, width: '550px'}}>
+                <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px', color: '#5D4037', margin: '0 0 15px 0' }}>📋 Orden #{ordenSeleccionada.numeroOrden}</h3>
+                
+                <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '5px' }}>
+                    
+                    {/* Detalles de la orden */}
+                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9rem', color: '#334155' }}>
+                            <div><b style={{color: '#0f172a'}}>Referencia:</b> {ordenSeleccionada.referencia}</div>
+                            <div><b style={{color: '#0f172a'}}>Color:</b> {ordenSeleccionada.color}</div>
+                            <div><b style={{color: '#0f172a'}}>Categoría:</b> {ordenSeleccionada.categoria}</div>
+                            <div>
+                                <b style={{color: '#0f172a'}}>Destino:</b> 
+                                {ordenSeleccionada.clienteId 
+                                    ? <span style={{color: '#b45309', fontWeight: 'bold'}}> 👤 {ordenSeleccionada.clienteNombre || `Cliente #${ordenSeleccionada.clienteId}`}</span> 
+                                    : <span style={{color: '#15803d', fontWeight: 'bold'}}> 🏭 Stock Fábrica</span>}
+                            </div>
+                            <div style={{ gridColumn: 'span 2' }}><b style={{color: '#0f172a'}}>Total Pares:</b> <span style={{fontSize:'1.1rem', fontWeight:'bold', color:'#b91c1c'}}>{ordenSeleccionada.totalPares}</span></div>
+                        </div>
+                        
+                        <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px' }}>
+                            <b style={{fontSize:'0.85rem', color:'#64748b', display:'block', marginBottom:'5px'}}>CURVA DE TALLAS:</b>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {[34,35,36,37,38,39,40,41,42,43,44].map(t => {
+                                    const cant = ordenSeleccionada[`t${t}`];
+                                    if(cant > 0) return (
+                                        <span key={t} style={{ background: '#fff', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: '6px', fontSize: '0.85rem', color: '#0f172a', fontWeight: '500', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                                            T{t}: <b style={{color:'#d97706'}}>{cant}</b>
+                                        </span>
+                                    );
+                                    return null;
+                                })}
+                            </div>
+                        </div>
+
+                        {(ordenSeleccionada.materiales || ordenSeleccionada.observacion) && (
+                            <div style={{ marginTop: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', fontSize: '0.85rem', color: '#475569' }}>
+                                {ordenSeleccionada.materiales && <div style={{ marginBottom: '6px' }}><b style={{color: '#0f172a'}}>Materiales:</b> {ordenSeleccionada.materiales}</div>}
+                                {ordenSeleccionada.observacion && <div><b style={{color: '#0f172a'}}>Observaciones:</b> <span style={{fontStyle:'italic'}}>{ordenSeleccionada.observacion}</span></div>}
+                            </div>
+                        )}
+                    </div>
+
+                    <h4 style={{ color: '#5D4037', borderBottom: '1px solid #eee', paddingBottom: '8px', marginBottom: '15px' }}>⏱️ Trazabilidad de Producción</h4>
+                    
                     <TimelineItem titulo="Creación de Orden" fecha={ordenSeleccionada.fechaInicio} responsable="Administración" terminado={true} />
                     <TimelineItem titulo="Corte" fecha={ordenSeleccionada.fechaFinCorte} responsable={getNombreEmpleado(ordenSeleccionada.cortadorId)} terminado={!!ordenSeleccionada.fechaFinCorte} />
                     <TimelineItem titulo="Armado" fecha={ordenSeleccionada.fechaFinArmado} responsable={getNombreEmpleado(ordenSeleccionada.armadorId)} terminado={!!ordenSeleccionada.fechaFinArmado} />
@@ -285,8 +394,9 @@ function GestionProduccion() {
                     <TimelineItem titulo="Soladura" fecha={ordenSeleccionada.fechaFinSoladura} responsable={getNombreEmpleado(ordenSeleccionada.soladorId)} terminado={!!ordenSeleccionada.fechaFinSoladura} />
                     <TimelineItem titulo="Emplantillado" fecha={ordenSeleccionada.fechaFinEmplantillado} responsable={getNombreEmpleado(ordenSeleccionada.emplantilladorId)} terminado={!!ordenSeleccionada.fechaFinEmplantillado} />
                 </div>
-                <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                    <button onClick={() => setModalHistorialOpen(false)} style={styles.btnCancel}>Cerrar</button>
+                
+                <div style={{ textAlign: 'right', marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                    <button onClick={() => setModalHistorialOpen(false)} style={styles.btnCancel}>Cerrar Detalles</button>
                 </div>
             </div>
         </div>

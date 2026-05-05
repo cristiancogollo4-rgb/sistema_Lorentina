@@ -52,5 +52,32 @@ class UserSeeder extends Seeder
                 ]
             );
         }
+
+        // Vendedores
+        User::updateOrCreate(
+            ['username' => 'juan.vendedor'],
+            [
+                'nombre' => 'Juan',
+                'apellido' => 'Ventas',
+                'password' => $password,
+                'rol' => 'VENDEDOR',
+                'activo' => true,
+                'telefono' => '3210000000',
+                'cedula' => '999999999',
+            ]
+        );
+
+        User::updateOrCreate(
+            ['username' => 'silvia.vendedor'],
+            [
+                'nombre' => 'Silvia',
+                'apellido' => 'Ventas',
+                'password' => $password,
+                'rol' => 'VENDEDOR',
+                'activo' => true,
+                'telefono' => '3220000000',
+                'cedula' => '888888888',
+            ]
+        );
     }
 }

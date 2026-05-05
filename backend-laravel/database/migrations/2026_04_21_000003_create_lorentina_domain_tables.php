@@ -27,11 +27,16 @@ return new class extends Migration
             $table->id();
             $table->string('nombre_modelo');
             $table->text('descripcion')->nullable();
+            $table->string('referencia')->nullable();
+            $table->string('color')->nullable();
+            $table->string('tipo')->nullable();
             $table->double('precio_detal');
             $table->double('precio_mayor');
             $table->double('costo_produccion');
             $table->boolean('activo')->default(true);
             $table->timestamp('created_at')->useCurrent();
+
+            $table->unique(['referencia', 'color', 'tipo']);
         });
 
         Schema::create('locales', function (Blueprint $table) {

@@ -22,11 +22,15 @@ const TIPO_LABELS = {
 const badgeStyle = (tipo) => ({
   fontSize: '0.72rem',
   fontWeight: 'bold',
-  padding: '3px 10px',
+  padding: '4px 12px',
   borderRadius: '20px',
   background: tipo === 'MAYORISTA' ? '#e3f2fd' : '#f3e5f5',
   color: tipo === 'MAYORISTA' ? '#1565c0' : '#6a1b9a',
   border: `1px solid ${tipo === 'MAYORISTA' ? '#90caf9' : '#ce93d8'}`,
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px'
 });
 
 const FORM_VACIO = {
@@ -53,13 +57,28 @@ export default function Clientes({ usuario }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
+  const [vendedores, setVendedores] = useState([]);
+  const [filtroVendedor, setFiltroVendedor] = useState('');
+
   useEffect(() => {
     cargar();
+  }, [filtroVendedor]);
+
+  useEffect(() => {
+    if (usuario?.rol === 'ADMIN') {
+      api.get('/usuarios').then(res => {
+         const vends = res.data.filter(u => u.rol === 'VENDEDOR' || u.rol === 'ADMIN');
+         setVendedores(vends);
+      }).catch(err => console.error(err));
+    }
   }, []);
 
   const cargar = async () => {
     try {
-      const res = await api.get('/clientes');
+      const isVendedor = usuario?.rol?.includes('VENDEDOR');
+      const vId = isVendedor ? usuario.id : filtroVendedor;
+      const params = vId ? `?vendedor_id=${vId}` : '';
+      const res = await api.get(`/clientes${params}`);
       setClientes(res.data);
     } catch (e) {
       console.error('Error cargando clientes:', e);
@@ -247,6 +266,23 @@ export default function Clientes({ usuario }) {
             </button>
           ))}
         </div>
+        
+        {usuario?.rol === 'ADMIN' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>Vendedor:</span>
+            <select
+              style={{ ...selectStyle, width: '200px', padding: '6px 10px', height: '36px', fontSize: '0.85rem' }}
+              value={filtroVendedor}
+              onChange={(e) => setFiltroVendedor(e.target.value)}
+            >
+              <option value="">Todos los vendedores</option>
+              {vendedores.map(v => (
+                <option key={v.id} value={v.id}>{v.nombre} {v.apellido} {v.rol === 'ADMIN' ? '(Admin)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="search-container" style={{ flex: 1, maxWidth: '420px' }}>
           <span className="search-icon-inside">🔍</span>
           <input
@@ -266,6 +302,7 @@ export default function Clientes({ usuario }) {
             <tr style={{ background: '#f8f9fa' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left' }}>Cliente</th>
               <th>Tipo</th>
+              <th>Creado Por</th>
               <th>Teléfono</th>
               <th>Ubicación</th>
               <th>Moneda</th>
@@ -280,11 +317,12 @@ export default function Clientes({ usuario }) {
               return (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                   <td style={{ padding: '12px 16px', fontWeight: 'bold', color: '#333' }}>{c.nombre}</td>
-                  <td>
+                  <td style={{ minWidth: '130px' }}>
                     <span style={badgeStyle(c.tipo_cliente)}>
                       {TIPO_LABELS[c.tipo_cliente]?.emoji} {c.tipo_cliente}
                     </span>
                   </td>
+                  <td style={{ color: '#0284c7', fontSize: '0.85rem', fontWeight: 'bold' }}>{c.vendedor?.nombre || 'Admin/General'}</td>
                   <td style={{ color: '#555', fontSize: '0.9rem' }}>{c.telefono || '—'}</td>
                   <td style={{ fontSize: '0.88rem', color: '#555' }}>
                     <strong>{ubicacion.principal}</strong>
@@ -305,7 +343,7 @@ export default function Clientes({ usuario }) {
             })}
             {clientesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#aaa' }}>
                   No se encontraron clientes.
                 </td>
               </tr>
