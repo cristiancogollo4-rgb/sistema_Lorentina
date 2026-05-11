@@ -103,6 +103,16 @@ function DashboardResumen({ usuario }) {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <a href="http://localhost:8000" target="_blank" rel="noopener noreferrer" className="btn-gold" style={{ 
+                textDecoration: 'none', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '10px',
+                padding: '15px 25px',
+                fontSize: '1rem'
+              }}>
+                🛒 Visitar E-commerce
+              </a>
               <div style={{ fontSize: '3rem', opacity: 0.8 }}>🏭</div>
             </div>
           </div>

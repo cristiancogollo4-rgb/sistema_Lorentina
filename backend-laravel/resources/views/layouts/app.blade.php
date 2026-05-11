@@ -840,7 +840,7 @@
 
 <header>
     <div class="brand">
-        <img class="brand-logo" src="{{ asset('images/coronalorentina.JPG') }}" alt="Lorentina">
+        <img class="brand-logo" src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Lorentina">
 
         <div class="brand-text">
             <h1>Lorentina</h1>
@@ -865,9 +865,6 @@
             @endif
         </a>
 
-        <a href="http://localhost:5173" target="_blank" class="nav-admin">
-            Panel Admin
-        </a>
     </nav>
 </header>
 

@@ -26,9 +26,6 @@
                     Ir al carrito
                 </a>
 
-                <a href="http://localhost:5173" target="_blank" class="btn btn-outline">
-                    Ingresar al panel administrativo
-                </a>
             </div>
         </div>
 
@@ -99,9 +96,6 @@
                 login del sistema.
             </p>
 
-            <a href="http://localhost:5173" target="_blank" class="btn btn-light">
-                Abrir login administrativo
-            </a>
         </div>
 
         <div class="admin-modules">

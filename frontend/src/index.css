@@ -479,6 +479,35 @@ body {
   box-shadow: 0 6px 20px rgba(197, 160, 89, 0.4);
 }
 
+.btn-ecommerce {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: var(--color-primario);
+  border: 1px solid var(--color-primario);
+  padding: 8px 16px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  margin-right: 15px;
+}
+
+.btn-ecommerce:hover {
+  background: var(--color-primario);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(88, 46, 46, 0.15);
+}
+
+.ecommerce-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .employee-table-container {
   background: white;
   border-radius: 16px;
