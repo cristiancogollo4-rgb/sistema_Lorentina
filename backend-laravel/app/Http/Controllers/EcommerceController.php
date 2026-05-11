@@ -11,7 +11,7 @@ class EcommerceController extends Controller
     public function landing()
     {
         $productos = ProductoCatalog::applyCatalogFilter(Producto::where('activo', 1), onlyWithImage: true)
-            ->latest('id')
+            ->orderBy('referencia')
             ->take(6)
             ->get()
             ->map(fn (Producto $producto) => ProductoCatalog::applyToProduct($producto));
@@ -19,11 +19,32 @@ class EcommerceController extends Controller
         return view('landing', compact('productos'));
     }
 
-    public function productos()
+    public function productos(Request $request)
     {
-        $productos = ProductoCatalog::applyCatalogFilter(Producto::where('activo', 1), onlyWithImage: true)
-            ->latest('id')
-            ->paginate(8);
+        $query = Producto::where('activo', 1);
+
+        if ($request->has('tipo')) {
+            $tipo = strtolower($request->input('tipo'));
+            
+            if ($tipo === 'romana') {
+                $query->whereIn('referencia', ['1016', '1024', '1028', '1029', '1035', '1041', '1056', '1157', '1187', '1195']);
+            } elseif ($tipo === 'clasica') {
+                $query->where('tipo', 'PLANA')
+                      ->whereNotIn('referencia', ['1016', '1024', '1028', '1029', '1035', '1041', '1056', '1157', '1187', '1195']);
+            } elseif ($tipo === 'plataforma') {
+                $query->where(function($q) {
+                    $q->where('tipo', 'PLATAFORMA')
+                      ->orWhere('nombre_modelo', 'like', 'Z%');
+                });
+            }
+        }
+
+        $productos = ProductoCatalog::applyCatalogFilter($query, onlyWithImage: true)
+            ->orderBy('referencia')
+            ->orderBy('color')
+            ->paginate(20);
+
+        $productos->appends($request->all());
 
         $productos->getCollection()->transform(
             fn (Producto $producto) => ProductoCatalog::applyToProduct($producto)

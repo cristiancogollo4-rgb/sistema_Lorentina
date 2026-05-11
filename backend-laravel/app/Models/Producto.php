@@ -44,13 +44,19 @@ class Producto extends Model
         if ($this->imagen) {
             $imagen = (string) $this->imagen;
 
-            // Detect Google Drive thumbnail URLs and transform them for better embedding
+            // Use optimized thumbnail format to avoid rate limits (429 errors)
             if (str_contains($imagen, 'drive.google.com') && str_contains($imagen, 'id=')) {
-                // Extract ID using regex
                 if (preg_match('/id=([a-zA-Z0-9_-]+)/', $imagen, $matches)) {
                     $driveId = $matches[1];
-                    // Return a more stable and direct embed URL
-                    return "https://lh3.googleusercontent.com/d/{$driveId}";
+                    // sz=w600 is enough for a good display while keeping requests lightweight
+                    return "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
+                }
+            }
+
+            if (str_contains($imagen, 'drive.google.com') && str_contains($imagen, '/d/')) {
+                if (preg_match('/\/d\/([a-zA-Z0-9_-]+)/', $imagen, $matches)) {
+                    $driveId = $matches[1];
+                    return "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
                 }
             }
 

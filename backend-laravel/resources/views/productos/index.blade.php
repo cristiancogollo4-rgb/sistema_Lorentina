@@ -14,6 +14,21 @@
         </a>
     </div>
 
+    <div class="filter-bar">
+        <a href="{{ route('productos.index') }}" class="btn {{ !request('tipo') ? '' : 'btn-outline' }}">
+            Todas
+        </a>
+        <a href="{{ route('productos.index', ['tipo' => 'romana']) }}" class="btn {{ request('tipo') == 'romana' ? '' : 'btn-outline' }}">
+            Romanas
+        </a>
+        <a href="{{ route('productos.index', ['tipo' => 'clasica']) }}" class="btn {{ request('tipo') == 'clasica' ? '' : 'btn-outline' }}">
+            Clásicas
+        </a>
+        <a href="{{ route('productos.index', ['tipo' => 'plataforma']) }}" class="btn {{ request('tipo') == 'plataforma' ? '' : 'btn-outline' }}">
+            Plataformas
+        </a>
+    </div>
+
     <div class="grid">
         @forelse($productos as $producto)
             <div class="card">
@@ -22,7 +37,7 @@
                         {{ $producto->tipo ?? 'Calzado' }}
                     </span>
 
-                    <img src="{{ $producto->imagen_src }}" alt="{{ $producto->nombre_modelo }}">
+                    <img src="{{ $producto->imagen_src }}" alt="{{ $producto->nombre_modelo }}" loading="lazy">
                 </div>
 
                 <div class="card-content">

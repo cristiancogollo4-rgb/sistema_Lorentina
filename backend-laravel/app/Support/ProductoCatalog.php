@@ -36,11 +36,29 @@ class ProductoCatalog
 
     public static function find(string $referencia, string $color, string $tipo): ?array
     {
-        $key = self::productKey($referencia, $color, $tipo);
+        $referencia = self::normalize($referencia);
+        $color = self::normalize($color);
+        $tipo = self::normalize($tipo);
+
+        $key = "{$referencia}|{$color}|{$tipo}";
 
         foreach (self::all() as $item) {
             if (self::itemKey($item) === $key) {
                 return $item;
+            }
+        }
+
+        // Fallback: Try matching by reference and type, and check if color is a partial match
+        foreach (self::all() as $item) {
+            $itemRef = self::normalize((string) ($item['referencia'] ?? ''));
+            $itemTipo = self::normalize((string) ($item['tipo'] ?? 'PLANA'));
+            $itemColor = self::normalize((string) ($item['color'] ?? ''));
+
+            if ($itemRef === $referencia && $itemTipo === $tipo) {
+                // Check if one color contains the other (e.g. "ACEITUNA" vs "VERDE ACEITUNA")
+                if (str_contains($itemColor, $color) || str_contains($color, $itemColor)) {
+                    return $item;
+                }
             }
         }
 
@@ -72,7 +90,10 @@ class ProductoCatalog
         }
 
         $producto->nombre_modelo = (string) ($item['product'] ?? $producto->nombre_modelo);
-        $producto->imagen = $item['image_url'] ?? $producto->imagen;
+        
+        if (!empty($item['image_url'])) {
+            $producto->imagen = $item['image_url'];
+        }
 
         return $producto;
     }
@@ -143,6 +164,9 @@ class ProductoCatalog
     public static function normalize(string $value): string
     {
         $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        // Remove # prefix if exists
+        $value = ltrim($value, '#');
+        
         $value = strtr($value, [
             'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
             'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U',

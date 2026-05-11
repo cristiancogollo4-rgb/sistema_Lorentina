@@ -679,6 +679,28 @@
             font-weight: 700;
         }
 
+        .filter-bar {
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(50, 34, 20, 0.1);
+    }
+
+    .filter-bar .btn {
+        padding: 0.5rem 1.2rem;
+        font-size: 0.9rem;
+        border-radius: 50px;
+        transition: all 0.3s ease;
+    }
+
+    .filter-bar .btn:not(.btn-outline) {
+        background: var(--primary);
+        color: var(--white);
+        box-shadow: 0 4px 10px rgba(127, 86, 20, 0.2);
+    }
+
         .detail-price {
             font-size: 34px;
             font-weight: 900;
