@@ -8,6 +8,7 @@ use App\Models\InventarioZapato;
 use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\ProductoCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -142,6 +143,11 @@ class LorentinaExcelSeeder extends Seeder
                     'precio_mayor' => (float) ($record['precio_mayor'] ?? 0),
                     'costo_produccion' => (float) ($record['costo_produccion'] ?? 0),
                     'activo' => (bool) ($record['activo'] ?? true),
+                    'imagen' => ProductoCatalog::imageUrlFor(
+                        (string) $record['referencia'],
+                        (string) $record['color'],
+                        (string) ($record['tipo'] ?? 'PLANA')
+                    ),
                 ]
             );
         }
@@ -150,7 +156,7 @@ class LorentinaExcelSeeder extends Seeder
     /**
      * @param array<int, array<string, mixed>> $records
      * @param array<string, int> $vendedores
-     * @return array<string, int>
+     * @return array<string, array{id:int, tipo_cliente:string}>
      */
     private function seedClients(array $records, array $vendedores, int $defaultVendedorId): array
     {
@@ -177,7 +183,10 @@ class LorentinaExcelSeeder extends Seeder
                 ]
             );
 
-            $clientes[$this->normalizeKey((string) $cliente->nombre)] = (int) $cliente->id;
+            $clientes[$this->normalizeKey((string) $cliente->nombre)] = [
+                'id' => (int) $cliente->id,
+                'tipo_cliente' => (string) $cliente->tipo_cliente,
+            ];
         }
 
         return $clientes;
@@ -202,7 +211,7 @@ class LorentinaExcelSeeder extends Seeder
 
     /**
      * @param array<int, array<string, mixed>> $records
-     * @param array<string, int> $clientes
+     * @param array<string, array{id:int, tipo_cliente:string}> $clientes
      * @param array<string, int> $productos
      * @param array<string, int> $vendedores
      */
@@ -219,12 +228,15 @@ class LorentinaExcelSeeder extends Seeder
         }
 
         foreach ($records as $record) {
-            $clienteId = $clientes[$this->normalizeKey((string) $record['cliente_nombre'])] ?? null;
+            $cliente = $clientes[$this->normalizeKey((string) $record['cliente_nombre'])] ?? null;
             $vendedorId = $vendedores[(string) ($record['vendedor_username'] ?? '')] ?? $defaultVendedorId;
 
-            if (! $clienteId) {
+            if (! $cliente) {
                 continue;
             }
+
+            $clienteId = $cliente['id'];
+            $esMayorista = in_array(strtoupper($cliente['tipo_cliente']), ['MAYORISTA', 'MAYOR'], true);
 
             $venta = Venta::query()->create([
                 'cliente_id' => $clienteId,
@@ -238,12 +250,15 @@ class LorentinaExcelSeeder extends Seeder
             ]);
 
             foreach (($record['items'] ?? []) as $item) {
-                $productKey = $this->productKey(
-                    (string) $item['referencia'],
-                    (string) $item['color'],
-                    (string) ($item['tipo'] ?? 'PLANA')
-                );
+                $item = $this->resolverItemVenta($item, $esMayorista);
+                $productKey = $this->productKey((string) $item['referencia'], (string) $item['color'], (string) ($item['tipo'] ?? 'PLANA'));
                 $productoId = $productos[$productKey] ?? null;
+
+                if (! $productoId && $esMayorista) {
+                    $producto = $this->productoDesdeCatalogo($item);
+                    $productoId = (int) $producto->id;
+                    $productos[$productKey] = $productoId;
+                }
 
                 if (! $productoId) {
                     continue;
@@ -262,6 +277,66 @@ class LorentinaExcelSeeder extends Seeder
                 ]);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function resolverItemVenta(array $item, bool $esMayorista): array
+    {
+        if (! $esMayorista) {
+            return $item;
+        }
+
+        $referencia = (string) ($item['referencia'] ?? '');
+        $color = (string) ($item['color'] ?? '');
+        $tipo = (string) ($item['tipo'] ?? 'PLANA');
+
+        if (ProductoCatalog::isAllowed($referencia, $color, $tipo)) {
+            return $item;
+        }
+
+        $replacement = ProductoCatalog::replacementFor($referencia, $color, $tipo);
+
+        if (! $replacement) {
+            return $item;
+        }
+
+        $item['referencia'] = (string) ($replacement['referencia'] ?? $referencia);
+        $item['color'] = (string) ($replacement['color'] ?? $color);
+        $item['tipo'] = (string) ($replacement['tipo'] ?? $tipo);
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function productoDesdeCatalogo(array $item): Producto
+    {
+        $catalogItem = ProductoCatalog::find(
+            (string) ($item['referencia'] ?? ''),
+            (string) ($item['color'] ?? ''),
+            (string) ($item['tipo'] ?? 'PLANA')
+        );
+
+        return Producto::query()->updateOrCreate(
+            [
+                'referencia' => (string) ($item['referencia'] ?? ''),
+                'color' => (string) ($item['color'] ?? ''),
+                'tipo' => (string) ($item['tipo'] ?? 'PLANA'),
+            ],
+            [
+                'nombre_modelo' => (string) ($catalogItem['product'] ?? trim(($item['referencia'] ?? '') . ' - ' . ($item['color'] ?? ''))),
+                'descripcion' => 'Producto autorizado desde catalogo Drive',
+                'precio_detal' => 0,
+                'precio_mayor' => 0,
+                'costo_produccion' => 0,
+                'activo' => true,
+                'imagen' => $catalogItem['image_url'] ?? null,
+            ]
+        );
     }
 
     private function productKey(string $referencia, string $color, string $tipo): string

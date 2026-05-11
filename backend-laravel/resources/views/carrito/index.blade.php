@@ -37,15 +37,15 @@
                         @php
                             $subtotal = $item['precio'] * $item['cantidad'];
                             $total += $subtotal;
+                            $imagenCarrito = $item['imagen'] ?? null;
+                            $imagenCarritoSrc = $imagenCarrito
+                                ? (str_starts_with($imagenCarrito, 'http') ? $imagenCarrito : asset('images/' . $imagenCarrito))
+                                : asset('images/default-shoe.jpg');
                         @endphp
 
                         <tr>
                             <td>
-                                @if($item['imagen'])
-                                    <img class="cart-img" src="{{ asset('images/' . $item['imagen']) }}" alt="{{ $item['nombre'] }}">
-                                @else
-                                    <img class="cart-img" src="{{ asset('images/default-shoe.jpg') }}" alt="Calzado Lorentina">
-                                @endif
+                                <img class="cart-img" src="{{ $imagenCarritoSrc }}" alt="{{ $item['nombre'] }}">
                             </td>
 
                             <td>

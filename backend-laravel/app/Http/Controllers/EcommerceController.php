@@ -3,25 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\Producto;
+use App\Support\ProductoCatalog;
 use Illuminate\Http\Request;
 
 class EcommerceController extends Controller
 {
     public function landing()
     {
-        $productos = Producto::where('activo', 1)
+        $productos = ProductoCatalog::applyCatalogFilter(Producto::where('activo', 1), onlyWithImage: true)
             ->latest('id')
             ->take(6)
-            ->get();
+            ->get()
+            ->map(fn (Producto $producto) => ProductoCatalog::applyToProduct($producto));
 
         return view('landing', compact('productos'));
     }
 
     public function productos()
     {
-        $productos = Producto::where('activo', 1)
+        $productos = ProductoCatalog::applyCatalogFilter(Producto::where('activo', 1), onlyWithImage: true)
             ->latest('id')
             ->paginate(8);
+
+        $productos->getCollection()->transform(
+            fn (Producto $producto) => ProductoCatalog::applyToProduct($producto)
+        );
 
         return view('productos.index', compact('productos'));
     }
@@ -31,12 +37,42 @@ class EcommerceController extends Controller
         $producto = Producto::where('activo', 1)
             ->findOrFail($id);
 
+        abort_unless(
+            ProductoCatalog::isAllowed(
+                (string) $producto->referencia,
+                (string) $producto->color,
+                (string) $producto->tipo
+            ) && ProductoCatalog::imageUrlFor(
+                (string) $producto->referencia,
+                (string) $producto->color,
+                (string) $producto->tipo
+            ),
+            404
+        );
+
+        ProductoCatalog::applyToProduct($producto);
+
         return view('productos.show', compact('producto'));
     }
 
     public function agregarCarrito(Request $request, $id)
     {
         $producto = Producto::findOrFail($id);
+
+        abort_unless(
+            ProductoCatalog::isAllowed(
+                (string) $producto->referencia,
+                (string) $producto->color,
+                (string) $producto->tipo
+            ) && ProductoCatalog::imageUrlFor(
+                (string) $producto->referencia,
+                (string) $producto->color,
+                (string) $producto->tipo
+            ),
+            404
+        );
+
+        ProductoCatalog::applyToProduct($producto);
 
         $cantidad = (int) $request->input('cantidad', 1);
 
@@ -53,7 +89,7 @@ class EcommerceController extends Controller
                 'id' => $producto->id,
                 'nombre' => $producto->nombre_modelo,
                 'precio' => $producto->precio_detal,
-                'imagen' => $producto->imagen,
+                'imagen' => $producto->imagen_src,
                 'cantidad' => $cantidad,
             ];
         }

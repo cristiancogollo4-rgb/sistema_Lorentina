@@ -5,24 +5,28 @@
     <title>Sistema Lorentina</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Fonts from Stitch Design System -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
     <style>
         :root {
-            --chocolate: #5b2f2d;
-            --chocolate-2: #6b3633;
-            --chocolate-3: #3b1f1e;
-            --vino: #5a2d2b;
-            --crema-logo: #f4e5dc;
-            --crema: #f7efe8;
-            --crema-2: #fffaf5;
-            --crema-3: #ead8ce;
-            --dorado: #d6a968;
-            --caramelo: #b9824f;
-            --texto: #2b1a18;
-            --gris: #6d5b56;
+            --primary: #322214; /* Saddle Brown */
+            --primary-container: #4a3728;
+            --secondary: #7f5614; /* Burnished Gold */
+            --secondary-container: #fdc579;
+            --tertiary: #481300; /* Terracotta */
+            --background: #fbf9f4; /* Parchment */
+            --surface: #f0eee9;
+            --surface-variant: #e4e2dd;
+            --on-surface: #1b1c19;
+            --on-surface-variant: #4e453e;
+            --outline: #80756d;
             --blanco: #ffffff;
-            --sombra: 0 16px 40px rgba(91, 47, 45, 0.16);
-            --sombra-fuerte: 0 24px 60px rgba(91, 47, 45, 0.25);
-            --radio: 24px;
+            --radio-sm: 4px;
+            --radio-lg: 12px;
+            --sombra-ambient: 0 8px 30px rgba(50, 34, 20, 0.08);
         }
 
         * {
@@ -31,11 +35,10 @@
 
         body {
             margin: 0;
-            font-family: "Segoe UI", Arial, sans-serif;
-            background:
-                radial-gradient(circle at top left, rgba(91, 47, 45, 0.12), transparent 30%),
-                linear-gradient(180deg, var(--crema-2), var(--crema));
-            color: var(--texto);
+            font-family: 'Manrope', sans-serif;
+            background-color: var(--background);
+            color: var(--on-surface);
+            line-height: 1.6;
         }
 
         a {
@@ -46,13 +49,13 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(91, 47, 45, 0.98);
+            background: var(--primary);
             color: white;
-            padding: 14px 8%;
+            padding: 16px 8%;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
 
         .brand {
@@ -78,11 +81,11 @@
 
         .brand-text h1 {
             margin: 0;
-            font-family: Georgia, "Times New Roman", serif;
+            font-family: 'Noto Serif', serif;
             font-size: 28px;
-            letter-spacing: 0.4px;
-            color: var(--crema-logo);
-            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #fbf9f4;
+            font-weight: 700;
         }
 
         .brand-text span {
@@ -844,11 +847,12 @@
 
         <div class="brand-text">
             <h1>Lorentina</h1>
-            <span>Producción, stock y calzado inteligente</span>
+            <span>Calzado artesanal con alma de Bucaramanga</span>
         </div>
     </div>
 
     <nav>
+
         <a href="{{ route('landing') }}">Inicio</a>
 
         <a href="{{ route('productos.index') }}">Productos</a>
@@ -879,7 +883,7 @@
 @yield('content')
 
 <footer>
-    <p>Sistema Lorentina – Gestión Inteligente de Producción y Stock de Calzado</p>
+    <p>© 2026 Lorentina – Elegancia y Calidad en Calzado Artesanal</p>
 </footer>
 
 </body>

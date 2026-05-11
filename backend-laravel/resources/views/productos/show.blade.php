@@ -17,11 +17,7 @@
 
     <section class="product-detail">
         <div class="product-detail-image">
-            @if($producto->imagen)
-                <img src="{{ asset('images/' . $producto->imagen) }}" alt="{{ $producto->nombre_modelo }}">
-            @else
-                <img src="{{ asset('images/default-shoe.jpg') }}" alt="Calzado Lorentina">
-            @endif
+            <img src="{{ $producto->imagen_src }}" alt="{{ $producto->nombre_modelo }}">
         </div>
 
         <div class="product-detail-info">

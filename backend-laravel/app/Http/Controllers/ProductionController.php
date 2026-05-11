@@ -10,6 +10,7 @@ use App\Models\Producto;
 use App\Models\TarifaCategoria;
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\ProductoCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -401,6 +402,11 @@ class ProductionController extends Controller
                     'precio_mayor' => 0,
                     'costo_produccion' => 0,
                     'activo' => true,
+                    'imagen' => ProductoCatalog::imageUrlFor(
+                        (string) $orden->referencia,
+                        (string) $orden->color,
+                        $tipo
+                    ),
                 ]
             );
 

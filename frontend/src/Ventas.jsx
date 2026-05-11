@@ -58,6 +58,11 @@ export default function Ventas({ usuario }) {
 
   const [vendedores, setVendedores] = useState([]);
   const [filtroVendedor, setFiltroVendedor] = useState('');
+  const clienteSeleccionado = useMemo(
+    () => clientes.find(c => c.id === Number(form.cliente_id)),
+    [clientes, form.cliente_id]
+  );
+  const esClienteMayorista = clienteSeleccionado?.tipo_cliente === 'MAYORISTA' || clienteSeleccionado?.tipo_cliente === 'MAYOR';
 
   // Auto-titular de cuenta
   useEffect(() => {
@@ -86,7 +91,11 @@ export default function Ventas({ usuario }) {
 
   const productosAgrupados = useMemo(() => {
     const grupos = {};
-    paresDisponibles.forEach(op => {
+    const opcionesVisibles = esClienteMayorista
+      ? paresDisponibles.filter(op => op.catalogoPermitidoMayorista)
+      : paresDisponibles;
+
+    opcionesVisibles.forEach(op => {
       const key = `${op.referencia}-${op.color}-${op.tipo}`;
       if (!grupos[key]) {
         grupos[key] = {
@@ -111,7 +120,7 @@ export default function Ventas({ usuario }) {
       g.referencia.toLowerCase().includes(search) || 
       g.color.toLowerCase().includes(search)
     );
-  }, [paresDisponibles, busquedaProducto]);
+  }, [paresDisponibles, busquedaProducto, esClienteMayorista]);
 
   // Clientes filtrados para el buscador del modal
   const clientesFiltradosModal = useMemo(() => {
@@ -177,11 +186,24 @@ export default function Ventas({ usuario }) {
   }, [form.sucursal, mostrarModal]);
 
   const opcionesPorClave = useMemo(() => {
-    return (paresDisponibles || []).reduce((acc, item) => {
+    const opcionesVisibles = esClienteMayorista
+      ? (paresDisponibles || []).filter(item => item.catalogoPermitidoMayorista)
+      : (paresDisponibles || []);
+
+    return opcionesVisibles.reduce((acc, item) => {
       acc[item.key] = item;
       return acc;
     }, {});
-  }, [paresDisponibles]);
+  }, [paresDisponibles, esClienteMayorista]);
+
+  useEffect(() => {
+    if (!esClienteMayorista) return;
+
+    setForm(prev => ({
+      ...prev,
+      items: prev.items.filter(item => !item.seleccion || opcionesPorClave[item.seleccion]),
+    }));
+  }, [esClienteMayorista, opcionesPorClave]);
 
   const totalVenta = (form?.items || []).reduce((acc, item) => {
     const cantidad = Number(item.cantidad) || 0;
@@ -670,7 +692,14 @@ export default function Ventas({ usuario }) {
 
             <div style={{ marginTop: '22px', border: '1px solid #eee', borderRadius: '14px', padding: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h4 style={{ margin: 0, color: '#333' }}>Menú de Productos Inteligente</h4>
+                <h4 style={{ margin: 0, color: '#333' }}>
+                  Menú de Productos Inteligente
+                  {esClienteMayorista && (
+                    <span style={{ marginLeft: '10px', color: '#00695c', fontSize: '0.78rem' }}>
+                      Catálogo mayorista autorizado
+                    </span>
+                  )}
+                </h4>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <input 
                     type="text" 
@@ -740,6 +769,11 @@ export default function Ventas({ usuario }) {
                     </div>
                   </div>
                 ))}
+                {productosAgrupados.length === 0 && (
+                  <div style={{ gridColumn: '1 / -1', padding: '20px', textAlign: 'center', color: '#888' }}>
+                    No hay productos disponibles para este filtro.
+                  </div>
+                )}
               </div>
             </div>
 

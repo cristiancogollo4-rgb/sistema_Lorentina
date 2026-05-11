@@ -10,10 +10,12 @@ use App\Models\Local;
 use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\ProductoCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class VentaController extends Controller
 {
@@ -137,6 +139,11 @@ class VentaController extends Controller
                     'sucursal' => $registro->sucursal,
                     'talla' => $talla,
                     'disponibles' => $disponibles,
+                    'catalogoPermitidoMayorista' => ProductoCatalog::isAllowed(
+                        (string) $registro->referencia,
+                        (string) $registro->color,
+                        (string) $registro->tipo
+                    ),
                 ];
             }
         }
@@ -166,6 +173,16 @@ class VentaController extends Controller
             'items.*.precio_unitario' => ['required', 'numeric', 'min:0'],
             'notas' => ['nullable', 'string'],
         ]);
+
+        $cliente = Cliente::query()->findOrFail((int) $data['cliente_id']);
+        $esMayorista = in_array(strtoupper((string) $cliente->tipo_cliente), ['MAYORISTA', 'MAYOR'], true);
+
+        if ($esMayorista) {
+            $data['items'] = $this->normalizarItemsMayoristas(
+                $data['items'],
+                (string) $data['sucursal']
+            );
+        }
 
         $productoIds = collect($data['items'])->pluck('producto_id')->unique()->values()->all();
         $productos = Producto::query()
@@ -268,6 +285,11 @@ class VentaController extends Controller
                     'precio_mayor' => 0,
                     'costo_produccion' => 0,
                     'activo' => true,
+                    'imagen' => ProductoCatalog::imageUrlFor(
+                        (string) $registro->referencia,
+                        (string) $registro->color,
+                        (string) $registro->tipo
+                    ),
                 ]
             );
 
@@ -275,6 +297,136 @@ class VentaController extends Controller
         }
 
         return Producto::query()->whereIn('id', array_values(array_unique($productoIds)))->get();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizarItemsMayoristas(array $items, string $sucursal): array
+    {
+        $consumido = [];
+
+        return array_map(function (array $item) use ($sucursal, &$consumido): array {
+            $producto = Producto::query()->find((int) $item['producto_id']);
+
+            if (
+                $producto &&
+                ProductoCatalog::isAllowed(
+                    (string) $producto->referencia,
+                    (string) $producto->color,
+                    (string) $producto->tipo
+                )
+            ) {
+                $this->registrarConsumoSimulado($consumido, $producto, (int) $item['talla'], (int) $item['cantidad']);
+
+                return $item;
+            }
+
+            $reemplazo = $this->resolverReemplazoMayorista(
+                $producto,
+                $sucursal,
+                (int) $item['talla'],
+                (int) $item['cantidad'],
+                $consumido
+            );
+
+            $item['producto_id'] = $reemplazo->id;
+            $this->registrarConsumoSimulado($consumido, $reemplazo, (int) $item['talla'], (int) $item['cantidad']);
+
+            return $item;
+        }, $items);
+    }
+
+    /**
+     * @param array<string, int> $consumido
+     */
+    private function resolverReemplazoMayorista(
+        ?Producto $producto,
+        string $sucursal,
+        int $talla,
+        int $cantidad,
+        array $consumido
+    ): Producto {
+        $preferido = $producto
+            ? ProductoCatalog::replacementFor(
+                (string) $producto->referencia,
+                (string) $producto->color,
+                (string) $producto->tipo
+            )
+            : null;
+
+        $candidatos = array_values(array_filter([
+            $preferido,
+            ...ProductoCatalog::all(),
+        ]));
+        $revisados = [];
+
+        foreach ($candidatos as $item) {
+            $key = ProductoCatalog::itemKey($item);
+            if (isset($revisados[$key])) {
+                continue;
+            }
+            $revisados[$key] = true;
+
+            $inventario = InventarioZapato::query()
+                ->where('referencia', (string) ($item['referencia'] ?? ''))
+                ->where('color', (string) ($item['color'] ?? ''))
+                ->where('tipo', (string) ($item['tipo'] ?? 'PLANA'))
+                ->where('sucursal', $sucursal)
+                ->first();
+
+            $campo = "t{$talla}";
+            $disponible = (int) ($inventario?->{$campo} ?? 0);
+            $yaConsumido = (int) ($consumido[$key . "|{$talla}"] ?? 0);
+
+            if ($disponible - $yaConsumido < $cantidad) {
+                continue;
+            }
+
+            return $this->productoDesdeCatalogo($item);
+        }
+
+        throw ValidationException::withMessages([
+            'producto_id' => 'No hay un producto del catalogo autorizado con stock suficiente para reemplazar este item mayorista.',
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function productoDesdeCatalogo(array $item): Producto
+    {
+        return Producto::query()->updateOrCreate(
+            [
+                'referencia' => (string) ($item['referencia'] ?? ''),
+                'color' => (string) ($item['color'] ?? ''),
+                'tipo' => (string) ($item['tipo'] ?? 'PLANA'),
+            ],
+            [
+                'nombre_modelo' => (string) ($item['product'] ?? trim(($item['referencia'] ?? '') . ' - ' . ($item['color'] ?? ''))),
+                'descripcion' => 'Producto autorizado desde catalogo Drive',
+                'precio_detal' => 0,
+                'precio_mayor' => 0,
+                'costo_produccion' => 0,
+                'activo' => true,
+                'imagen' => $item['image_url'] ?? null,
+            ]
+        );
+    }
+
+    /**
+     * @param array<string, int> $consumido
+     */
+    private function registrarConsumoSimulado(array &$consumido, Producto $producto, int $talla, int $cantidad): void
+    {
+        $key = ProductoCatalog::productKey(
+            (string) $producto->referencia,
+            (string) $producto->color,
+            (string) $producto->tipo
+        ) . "|{$talla}";
+
+        $consumido[$key] = (int) ($consumido[$key] ?? 0) + $cantidad;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InventarioZapato;
 use App\Models\InventarioMovimiento;
 use App\Models\Producto;
+use App\Support\ProductoCatalog;
 use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -579,6 +580,7 @@ class StockController extends Controller
                     'precio_mayor' => 0,
                     'costo_produccion' => 0,
                     'activo' => true,
+                    'imagen' => ProductoCatalog::imageUrlFor($referencia, $color, $tipo),
                 ]
             );
         }
