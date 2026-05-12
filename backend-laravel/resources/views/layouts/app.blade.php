@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Sistema Lorentina</title>
@@ -8,16 +9,22 @@
     <!-- Fonts from Stitch Design System -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
 
     <style>
         :root {
-            --primary: #322214; /* Saddle Brown */
+            --primary: #322214;
+            /* Saddle Brown */
             --primary-container: #4a3728;
-            --secondary: #7f5614; /* Burnished Gold */
+            --secondary: #7f5614;
+            /* Burnished Gold */
             --secondary-container: #fdc579;
-            --tertiary: #481300; /* Terracotta */
-            --background: #fbf9f4; /* Parchment */
+            --tertiary: #481300;
+            /* Terracotta */
+            --background: #fbf9f4;
+            /* Parchment */
             --surface: #f0eee9;
             --surface-variant: #e4e2dd;
             --on-surface: #1b1c19;
@@ -70,7 +77,7 @@
             border-radius: 15px;
             object-fit: cover;
             background: var(--chocolate);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.16);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
         }
 
         .brand-text {
@@ -111,7 +118,7 @@
         }
 
         nav a:hover {
-            background: rgba(255,255,255,0.14);
+            background: rgba(255, 255, 255, 0.14);
             transform: translateY(-1px);
         }
 
@@ -147,7 +154,7 @@
             border-radius: 12px;
             margin: 18px 0;
             color: var(--chocolate);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
             font-weight: 700;
         }
 
@@ -161,13 +168,13 @@
             display: inline-block;
             font-weight: 800;
             transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 9px 22px rgba(91,47,45,0.22);
+            box-shadow: 0 9px 22px rgba(91, 47, 45, 0.22);
             font-size: 14px;
         }
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 13px 28px rgba(91,47,45,0.30);
+            box-shadow: 0 13px 28px rgba(91, 47, 45, 0.30);
         }
 
         .btn-outline {
@@ -238,7 +245,7 @@
             border-radius: 34px;
             padding: 36px;
             box-shadow: var(--sombra);
-            border: 1px solid rgba(91,47,45,0.12);
+            border: 1px solid rgba(91, 47, 45, 0.12);
             position: relative;
             overflow: hidden;
         }
@@ -251,7 +258,7 @@
             width: 180px;
             height: 180px;
             border-radius: 50%;
-            background: rgba(91,47,45,0.08);
+            background: rgba(91, 47, 45, 0.08);
         }
 
         .hero-card h3 {
@@ -298,7 +305,7 @@
             border-radius: 24px;
             padding: 27px;
             box-shadow: var(--sombra);
-            border: 1px solid rgba(91,47,45,0.08);
+            border: 1px solid rgba(91, 47, 45, 0.08);
         }
 
         .overview-icon {
@@ -358,8 +365,8 @@
         }
 
         .admin-module {
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 16px;
             padding: 15px;
             font-weight: 800;
@@ -396,13 +403,13 @@
             border-radius: var(--radio);
             overflow: hidden;
             box-shadow: var(--sombra);
-            border: 1px solid rgba(91,47,45,0.08);
+            border: 1px solid rgba(91, 47, 45, 0.08);
             transition: transform 0.25s, box-shadow 0.25s;
         }
 
         .card:hover {
             transform: translateY(-6px);
-            box-shadow: 0 18px 42px rgba(91,47,45,0.22);
+            box-shadow: 0 18px 42px rgba(91, 47, 45, 0.22);
         }
 
         .card-img {
@@ -423,7 +430,7 @@
             position: absolute;
             top: 14px;
             left: 14px;
-            background: rgba(91,47,45,0.92);
+            background: rgba(91, 47, 45, 0.92);
             color: white;
             padding: 7px 11px;
             border-radius: 999px;
@@ -513,6 +520,22 @@
         .empty-box h3 {
             color: var(--chocolate);
             margin-top: 0;
+        }
+
+        .carrito-empty-btn {
+            display: inline-block;
+            background: #ffffff !important;
+            color: #000000 !important;
+            border: 1px solid #e2cdb8 !important;
+            padding: 12px 28px;
+            border-radius: 999px;
+            font-weight: 800;
+            box-shadow: 0 8px 18px rgba(50, 34, 20, 0.12);
+        }
+
+        .carrito-empty-btn:hover {
+            background: #f4e5dc !important;
+            color: #000000 !important;
         }
 
         .cart-card {
@@ -621,7 +644,7 @@
             border-radius: 30px;
             padding: 32px;
             box-shadow: var(--sombra);
-            border: 1px solid rgba(91,47,45,0.08);
+            border: 1px solid rgba(91, 47, 45, 0.08);
         }
 
         .product-detail-image {
@@ -629,7 +652,7 @@
             border-radius: 26px;
             overflow: hidden;
             height: 520px;
-            box-shadow: inset 0 0 0 1px rgba(91,47,45,0.08);
+            box-shadow: inset 0 0 0 1px rgba(91, 47, 45, 0.08);
         }
 
         .product-detail-image img {
@@ -680,26 +703,26 @@
         }
 
         .filter-bar {
-        margin-bottom: 2rem;
-        display: flex;
-        gap: 0.8rem;
-        flex-wrap: wrap;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid rgba(50, 34, 20, 0.1);
-    }
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(50, 34, 20, 0.1);
+        }
 
-    .filter-bar .btn {
-        padding: 0.5rem 1.2rem;
-        font-size: 0.9rem;
-        border-radius: 50px;
-        transition: all 0.3s ease;
-    }
+        .filter-bar .btn {
+            padding: 0.5rem 1.2rem;
+            font-size: 0.9rem;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+        }
 
-    .filter-bar .btn:not(.btn-outline) {
-        background: var(--primary);
-        color: var(--white);
-        box-shadow: 0 4px 10px rgba(127, 86, 20, 0.2);
-    }
+        .filter-bar .btn:not(.btn-outline) {
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(127, 86, 20, 0.2);
+        }
 
         .detail-price {
             font-size: 34px;
@@ -861,52 +884,54 @@
         }
     </style>
 </head>
+
 <body>
 
-<header>
-    <div class="brand">
-        <img class="brand-logo" src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Lorentina">
+    <header>
+        <div class="brand">
+            <img class="brand-logo" src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Lorentina">
 
-        <div class="brand-text">
-            <h1>Lorentina</h1>
-            <span>Calzado artesanal con alma de Bucaramanga</span>
+            <div class="brand-text">
+                <h1>Lorentina</h1>
+                <span>Calzado artesanal con alma de Bucaramanga</span>
+            </div>
         </div>
-    </div>
 
-    <nav>
+        <nav>
 
-        <a href="{{ route('landing') }}">Inicio</a>
+            <a href="{{ route('landing') }}">Inicio</a>
 
-        <a href="{{ route('productos.index') }}">Productos</a>
+            <a href="{{ route('productos.index') }}">Productos</a>
 
-        <a href="{{ route('carrito.ver') }}">
-            🛒 Carrito
+            <a href="{{ route('carrito.ver') }}">
+                🛒 Carrito
 
-            @php
-                $cantidadCarrito = collect(session('carrito', []))->sum('cantidad');
-            @endphp
+                @php
+                    $cantidadCarrito = collect(session('carrito', []))->sum('cantidad');
+                @endphp
 
-            @if($cantidadCarrito > 0)
-                <span class="cart-badge">{{ $cantidadCarrito }}</span>
-            @endif
-        </a>
+                @if ($cantidadCarrito > 0)
+                    <span class="cart-badge">{{ $cantidadCarrito }}</span>
+                @endif
+            </a>
 
-    </nav>
-</header>
+        </nav>
+    </header>
 
-@if(session('success'))
-    <div class="container">
-        <div class="alert">
-            {{ session('success') }}
+    @if (session('success'))
+        <div class="container">
+            <div class="alert">
+                {{ session('success') }}
+            </div>
         </div>
-    </div>
-@endif
+    @endif
 
-@yield('content')
+    @yield('content')
 
-<footer>
-    <p>© 2026 Lorentina – Elegancia y Calidad en Calzado Artesanal</p>
-</footer>
+    <footer>
+        <p>© 2026 Lorentina – Elegancia y Calidad en Calzado Artesanal</p>
+    </footer>
 
 </body>
+
 </html>
