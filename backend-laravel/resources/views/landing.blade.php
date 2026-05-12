@@ -14,6 +14,16 @@
                 <a href="{{ route('productos.index') }}" class="btn-primary-gold">Explorar Catálogo</a>
                 <a href="#novedades" class="btn-secondary-white">Ver Novedades</a>
             </div>
+
+            <div class="hero-search" style="margin-top: 35px; max-width: 500px;">
+                <form action="{{ route('productos.index') }}" method="GET" style="display: flex; gap: 0; background: white; padding: 5px; border-radius: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+                    <input type="text" name="search" placeholder="¿Qué buscas hoy? (ej. 1006, Perla...)" 
+                           style="flex: 1; border: none; padding: 12px 25px; border-radius: 50px 0 0 50px; outline: none; font-size: 1rem; color: #333;">
+                    <button type="submit" style="background: var(--secondary); color: white; border: none; padding: 12px 25px; border-radius: 50px; cursor: pointer; font-weight: 800; transition: 0.2s;">
+                        Buscar
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="hero-image-container">
             <img src="{{ asset('images/hero-lorentina.jpg') }}" alt="Lorentina Calzado Artesanal" class="hero-img">

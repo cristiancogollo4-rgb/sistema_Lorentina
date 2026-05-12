@@ -15,7 +15,7 @@
     </div>
 
     @if(count($carrito) > 0)
-        <div class="cart-card">
+        <div class="cart-card" data-cart-state='@json($carrito)'>
             <table>
                 <thead>
                     <tr>
@@ -41,17 +41,23 @@
                             $imagenCarritoSrc = $imagenCarrito
                                 ? (str_starts_with($imagenCarrito, 'http') ? $imagenCarrito : asset('images/' . $imagenCarrito))
                                 : asset('images/default-shoe.jpg');
+                            $referencia = $item['referencia'] ?? '';
+                            $color = $item['color'] ?? '';
                         @endphp
 
                         <tr>
                             <td>
-                                <img class="cart-img" src="{{ $imagenCarritoSrc }}" alt="{{ $item['nombre'] }}">
+                                <img class="cart-img" src="{{ $imagenCarritoSrc }}" alt="{{ $item['nombre'] }}" loading="lazy">
                             </td>
 
                             <td>
                                 <strong>{{ $item['nombre'] }}</strong>
                                 <br>
-                                <span style="font-size: 0.85rem; color: #7f5614; font-weight: 800;">Talla: {{ $item['talla'] }}</span>
+                                @if($referencia || $color)
+                                    <span class="cart-ref">Ref: {{ $referencia }} {{ $color ? '- ' . $color : '' }}</span>
+                                    <br>
+                                @endif
+                                <span class="cart-size">Talla: {{ $item['talla'] }}</span>
                             </td>
 
                             <td>
@@ -62,10 +68,10 @@
                                 <form action="{{ route('carrito.actualizar', $key) }}" method="POST" class="cart-quantity-form">
                                     @csrf
 
-                                    <input 
-                                        type="number" 
-                                        name="cantidad" 
-                                        value="{{ $item['cantidad'] }}" 
+                                    <input
+                                        type="number"
+                                        name="cantidad"
+                                        value="{{ $item['cantidad'] }}"
                                         min="1"
                                         class="cart-quantity-input"
                                     >
@@ -99,15 +105,31 @@
                 <h2>${{ number_format($total, 0, ',', '.') }}</h2>
             </div>
 
-            <br>
+            <div class="order-confirmation">
+                <h3>Resumen antes de enviar</h3>
+                <div class="order-summary">
+                    @foreach($carrito as $item)
+                        <div>
+                            <span>{{ $item['referencia'] ?? $item['nombre'] }} {{ $item['color'] ?? '' }} - T.{{ $item['talla'] }}</span>
+                            <strong>{{ $item['cantidad'] }} {{ $item['cantidad'] == 1 ? 'par' : 'pares' }}</strong>
+                        </div>
+                    @endforeach
+                </div>
+                <p>Tu pedido será enviado por WhatsApp para coordinar pago, fabricación o envío.</p>
 
-            <form action="{{ route('carrito.vaciar') }}" method="POST">
-                @csrf
+                <div class="order-actions">
+                    <button onclick="sendWhatsAppOrder()" class="btn btn-whatsapp" type="button">
+                        📱 Finalizar por WhatsApp
+                    </button>
 
-                <button class="btn btn-outline" type="submit">
-                    Vaciar carrito
-                </button>
-            </form>
+                    <form action="{{ route('carrito.vaciar') }}" method="POST">
+                        @csrf
+                        <button class="btn btn-outline" type="submit">
+                            Vaciar carrito
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     @else
         <div class="empty-box">
@@ -125,3 +147,15 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    function sendWhatsAppOrder() {
+        const items = @json($carrito);
+        const message = buildLorentinaOrderMessage(items);
+        const whatsappUrl = `https://wa.me/{{ $whatsappNumber }}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank', 'noopener');
+    }
+</script>
+@endpush
+

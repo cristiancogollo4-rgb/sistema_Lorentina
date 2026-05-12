@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Producto;
 use App\Support\ProductoCatalog;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 
 class EcommerceController extends Controller
@@ -54,6 +55,14 @@ class EcommerceController extends Controller
             }
         }
 
+        if ($request->filled('search')) {
+            $query->search($request->input('search'));
+        }
+
+        if ($request->filled('color')) {
+            $query->where('productos.color', $request->input('color'));
+        }
+
         if ($request->has('talla')) {
             $tallaNum = (int) $request->input('talla');
             if ($tallaNum >= 35 && $tallaNum <= 42) {
@@ -73,7 +82,18 @@ class EcommerceController extends Controller
             fn (Producto $producto) => ProductoCatalog::applyToProduct($producto)
         );
 
-        return view('productos.index', compact('productos'));
+        $colores = Cache::remember('catalogo.colores.activos', now()->addHours(12), function () {
+            return Producto::where('activo', 1)
+                ->distinct()
+                ->pluck('color')
+                ->filter(fn ($color) => is_string($color) && trim($color) !== '')
+                ->sort()
+                ->values();
+        });
+
+        $whatsappNumber = config('services.lorentina.whatsapp_number', '573000000000');
+
+        return view('productos.index', compact('productos', 'colores', 'whatsappNumber'));
     }
 
     public function show($id)
@@ -135,6 +155,8 @@ class EcommerceController extends Controller
                 $carrito[$cartKey] = [
                     'id' => $producto->id,
                     'nombre' => $producto->nombre_modelo,
+                    'referencia' => $producto->referencia,
+                    'color' => $producto->color,
                     'precio' => $producto->precio_detal,
                     'imagen' => $producto->imagen_src,
                     'cantidad' => $cantidad,
@@ -177,8 +199,52 @@ class EcommerceController extends Controller
     public function verCarrito()
     {
         $carrito = session()->get('carrito', []);
+        $whatsappNumber = config('services.lorentina.whatsapp_number', '573000000000');
 
-        return view('carrito.index', compact('carrito'));
+        return view('carrito.index', compact('carrito', 'whatsappNumber'));
+    }
+
+    public function sincronizarCarrito(Request $request)
+    {
+        $items = $request->input('carrito', []);
+
+        if (! is_array($items)) {
+            return response()->json(['ok' => false], 422);
+        }
+
+        $carrito = [];
+        foreach ($items as $key => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $cantidad = max(1, (int) ($item['cantidad'] ?? 1));
+            $id = (int) ($item['id'] ?? 0);
+            $talla = (string) ($item['talla'] ?? '');
+
+            if ($id < 1 || $talla === '') {
+                continue;
+            }
+
+            $cartKey = is_string($key) && $key !== '' ? $key : "{$id}_{$talla}";
+            $carrito[$cartKey] = [
+                'id' => $id,
+                'nombre' => (string) ($item['nombre'] ?? 'Producto Lorentina'),
+                'referencia' => (string) ($item['referencia'] ?? ''),
+                'color' => (string) ($item['color'] ?? ''),
+                'precio' => (float) ($item['precio'] ?? 0),
+                'imagen' => (string) ($item['imagen'] ?? ''),
+                'cantidad' => $cantidad,
+                'talla' => $talla,
+            ];
+        }
+
+        session()->put('carrito', $carrito);
+
+        return response()->json([
+            'ok' => true,
+            'cantidad' => collect($carrito)->sum('cantidad'),
+        ]);
     }
 
     public function eliminarCarrito($key)
@@ -192,7 +258,8 @@ class EcommerceController extends Controller
 
         return redirect()
             ->route('carrito.ver')
-            ->with('success', 'Producto eliminado del carrito.');
+            ->with('success', 'Producto eliminado del carrito.')
+            ->with('cart_cleared', count($carrito) === 0);
     }
 
     public function vaciarCarrito()
@@ -201,6 +268,15 @@ class EcommerceController extends Controller
 
         return redirect()
             ->route('carrito.ver')
-            ->with('success', 'Carrito vaciado.');
+            ->with('success', 'Carrito vaciado.')
+            ->with('cart_cleared', true);
+    }
+
+    public function sitemap()
+    {
+        $productos = Producto::where('activo', 1)->get();
+        
+        return response()->view('sitemap', compact('productos'))
+            ->header('Content-Type', 'text/xml');
     }
 }

@@ -20,6 +20,8 @@ Route::post('/carrito/eliminar/{id}', [EcommerceController::class, 'eliminarCarr
 
 Route::post('/carrito/vaciar', [EcommerceController::class, 'vaciarCarrito'])->name('carrito.vaciar');
 
+Route::post('/carrito/sincronizar', [EcommerceController::class, 'sincronizarCarrito'])->name('carrito.sincronizar');
+
 Route::get('/admin/productos', [AdminProductoController::class, 'index'])->name('admin.productos.index');
 
 Route::get('/admin/productos/crear', [AdminProductoController::class, 'crear'])->name('admin.productos.crear');
@@ -27,3 +29,4 @@ Route::get('/admin/productos/crear', [AdminProductoController::class, 'crear'])-
 Route::post('/admin/productos/guardar', [AdminProductoController::class, 'guardar'])->name('admin.productos.guardar');
 
 Route::post('/admin/productos/{id}/estado', [AdminProductoController::class, 'cambiarEstado'])->name('admin.productos.estado');
+Route::get('/sitemap.xml', [EcommerceController::class, 'sitemap'])->name('sitemap');

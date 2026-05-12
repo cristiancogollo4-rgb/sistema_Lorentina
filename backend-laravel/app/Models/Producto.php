@@ -48,22 +48,67 @@ class Producto extends Model
 
     public function getTallasDisponiblesAttribute()
     {
-        $inventario = \DB::table('inventario_zapatos')
-            ->where('referencia', $this->referencia)
-            ->where('color', $this->color)
-            ->first();
+        return array_keys($this->stock_por_talla);
+    }
+
+    public function getStockPorTallaAttribute(): array
+    {
+        $inventario = $this->getInventario();
 
         if (!$inventario) return [];
 
-        $tallas = [];
+        $stock = [];
         foreach (range(35, 42) as $t) {
             $col = "t$t";
-            if (($inventario->$col ?? 0) > 0) {
-                $tallas[] = $t;
+            $cantidad = (int) ($inventario->$col ?? 0);
+            if ($cantidad > 0) {
+                $stock[$t] = $cantidad;
             }
         }
 
-        return $tallas;
+        return $stock;
+    }
+
+    public function getTieneStockBajoAttribute(): bool
+    {
+        foreach ($this->stock_por_talla as $cantidad) {
+            if ($cantidad > 0 && $cantidad < 3) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getTotalStockAttribute()
+    {
+        $inventario = $this->getInventario();
+        if (!$inventario) return 0;
+
+        $total = 0;
+        foreach (range(35, 42) as $t) {
+            $col = "t$t";
+            $total += (int)($inventario->$col ?? 0);
+        }
+        return $total;
+    }
+
+    private function getInventario()
+    {
+        return \DB::table('inventario_zapatos')
+            ->where('referencia', $this->referencia)
+            ->where('color', $this->color)
+            ->first();
+    }
+
+    public function scopeSearch($query, $term)
+    {
+        if (!$term) return $query;
+        return $query->where(function($q) use ($term) {
+            $q->where('productos.nombre_modelo', 'like', "%{$term}%")
+              ->orWhere('productos.referencia', 'like', "%{$term}%")
+              ->orWhere('productos.color', 'like', "%{$term}%");
+        });
     }
 
     public function getImagenSrcAttribute(): string
@@ -87,6 +132,7 @@ class Producto extends Model
                     $urls[] = "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
                 }
             } else {
+                $img = $this->preferWebpForHeic($img);
                 $urls[] = str_starts_with($img, 'http')
                     ? $img
                     : asset('images/' . $img);
@@ -98,5 +144,19 @@ class Producto extends Model
         }
 
         return $urls;
+    }
+
+    private function preferWebpForHeic(string $path): string
+    {
+        if (! str_ends_with(strtolower($path), '.heic') || str_starts_with($path, 'http')) {
+            return $path;
+        }
+
+        $webpPath = preg_replace('/\.heic$/i', '.webp', $path);
+        if (! $webpPath) {
+            return $path;
+        }
+
+        return file_exists(public_path('images/' . $webpPath)) ? $webpPath : $path;
     }
 }
