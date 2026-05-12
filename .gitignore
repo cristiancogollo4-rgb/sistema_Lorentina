@@ -1,0 +1,6 @@
+# Large local assets - never commit
+fotos/
+backend-laravel/public/images/catalog/
+backend-laravel/migrate_images_to_local.php
+backend-laravel/migrate_all_photos.php
+backend-laravel/sync_catalog_db.php
