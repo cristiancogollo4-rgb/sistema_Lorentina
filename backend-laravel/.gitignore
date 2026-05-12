@@ -24,9 +24,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
-# Large catalog images (stored locally only, not in repo)
-/public/images/catalog/
-
 # Temporary migration/sync scripts
 migrate_images_to_local.php
 migrate_all_photos.php

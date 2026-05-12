@@ -1,0 +1,1 @@
+backend-laravel/public/images/catalog/** filter=lfs diff=lfs merge=lfs -text
