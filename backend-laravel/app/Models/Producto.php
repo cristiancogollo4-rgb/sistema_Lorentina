@@ -21,6 +21,7 @@ class Producto extends Model
         'costo_produccion',
         'activo',
         'imagen',
+        'imagenes',
         'created_at',
     ];
 
@@ -35,36 +36,67 @@ class Producto extends Model
             'costo_produccion' => 'float',
             'activo' => 'boolean',
             'imagen' => 'string',
+            'imagenes' => 'array',
             'created_at' => 'datetime',
         ];
     }
 
-    public function getImagenSrcAttribute(): string
+    public function stocks()
     {
-        if ($this->imagen) {
-            $imagen = (string) $this->imagen;
+        return $this->hasMany(Stock::class, 'producto_id');
+    }
 
-            // Use optimized thumbnail format to avoid rate limits (429 errors)
-            if (str_contains($imagen, 'drive.google.com') && str_contains($imagen, 'id=')) {
-                if (preg_match('/id=([a-zA-Z0-9_-]+)/', $imagen, $matches)) {
-                    $driveId = $matches[1];
-                    // sz=w600 is enough for a good display while keeping requests lightweight
-                    return "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
-                }
+    public function getTallasDisponiblesAttribute()
+    {
+        $inventario = \DB::table('inventario_zapatos')
+            ->where('referencia', $this->referencia)
+            ->where('color', $this->color)
+            ->first();
+
+        if (!$inventario) return [];
+
+        $tallas = [];
+        foreach (range(35, 42) as $t) {
+            $col = "t$t";
+            if (($inventario->$col ?? 0) > 0) {
+                $tallas[] = $t;
             }
-
-            if (str_contains($imagen, 'drive.google.com') && str_contains($imagen, '/d/')) {
-                if (preg_match('/\/d\/([a-zA-Z0-9_-]+)/', $imagen, $matches)) {
-                    $driveId = $matches[1];
-                    return "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
-                }
-            }
-
-            return str_starts_with($imagen, 'http')
-                ? $imagen
-                : asset('images/' . $imagen);
         }
 
-        return asset('images/default-shoe.jpg');
+        return $tallas;
+    }
+
+    public function getImagenSrcAttribute(): string
+    {
+        return $this->todas_las_imagenes_src[0] ?? asset('images/default-shoe.jpg');
+    }
+
+    public function getTodasLasImagenesSrcAttribute(): array
+    {
+        $urls = [];
+        $imagenes = $this->imagenes ?? [];
+
+        if (empty($imagenes) && $this->imagen) {
+            $imagenes = [$this->imagen];
+        }
+
+        foreach ($imagenes as $img) {
+            if (str_contains($img, 'drive.google.com')) {
+                if (preg_match('/(?:id=|\/d\/)([a-zA-Z0-9_-]+)/', $img, $matches)) {
+                    $driveId = $matches[1];
+                    $urls[] = "https://drive.google.com/thumbnail?id={$driveId}&sz=w600";
+                }
+            } else {
+                $urls[] = str_starts_with($img, 'http')
+                    ? $img
+                    : asset('images/' . $img);
+            }
+        }
+
+        if (empty($urls)) {
+            $urls[] = asset('images/default-shoe.jpg');
+        }
+
+        return $urls;
     }
 }

@@ -80,22 +80,33 @@
 
     <div class="grid-products">
         @forelse($productos as $producto)
-            <div class="product-card">
+            @php
+                $imagenes = $producto->todas_las_imagenes_src;
+                $hasMultiple = count($imagenes) > 1;
+            @endphp
+            <div class="product-card" 
+                 data-images="{{ json_encode($imagenes) }}"
+                 onmouseenter="startCarousel(this)" 
+                 onmouseleave="stopCarousel(this)">
                 <div class="product-img">
                     <span class="product-tag">{{ $producto->tipo ?? 'Nuevo' }}</span>
-                    <img src="{{ $producto->imagen_src }}" alt="{{ $producto->nombre_modelo }}">
+                    <img src="{{ $imagenes[0] }}" alt="{{ $producto->nombre_modelo }}" class="main-img">
+                    @if($hasMultiple)
+                        <div class="carousel-dots">
+                            @foreach($imagenes as $idx => $img)
+                                <span class="dot {{ $idx == 0 ? 'active' : '' }}"></span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
                 <div class="product-info">
                     <span class="product-ref">Ref: {{ $producto->referencia ?? 'LR' }}</span>
                     <h3>{{ $producto->nombre_modelo }}</h3>
                     <p class="product-price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</p>
-                    <div class="product-actions">
-                        <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST" style="flex-grow: 1;">
-                            @csrf
-                            <input type="hidden" name="cantidad" value="1">
-                            <button class="btn-add-cart" type="submit">Agregar</button>
-                        </form>
-                        <a href="{{ route('productos.show', $producto->id) }}" class="btn-detail">Ver</a>
+                    <div class="product-actions" style="margin-top: 15px;">
+                        <a href="{{ route('productos.show', $producto->id) }}" class="btn btn-primary" style="width: 100%; text-align: center;">
+                            Ver producto
+                        </a>
                     </div>
                 </div>
             </div>
@@ -410,33 +421,5 @@
     .btn-detail:hover {
         background: var(--surface-variant);
     }
-
-    @media (max-width: 900px) {
-        .hero-premium {
-            grid-template-columns: 1fr;
-            padding: 40px 24px;
-            text-align: center;
-        }
-        .hero-premium p {
-            margin-inline: auto;
-        }
-        .hero-buttons {
-            justify-content: center;
-        }
-        .categories-grid {
-            grid-template-columns: 1fr 1fr;
-        }
-        .benefits-strip {
-            flex-direction: column;
-            gap: 24px;
-        }
-        .section-head {
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            text-align: center;
-        }
-    }
 </style>
-
 @endsection

@@ -95,6 +95,10 @@ class ProductoCatalog
             $producto->imagen = $item['image_url'];
         }
 
+        if (!empty($item['images'])) {
+            $producto->imagenes = $item['images'];
+        }
+
         return $producto;
     }
 
@@ -113,9 +117,9 @@ class ProductoCatalog
             foreach ($items as $item) {
                 $query->orWhere(function (Builder $query) use ($item): void {
                     $query
-                        ->where('referencia', (string) ($item['referencia'] ?? ''))
-                        ->where('color', (string) ($item['color'] ?? ''))
-                        ->where('tipo', (string) ($item['tipo'] ?? 'PLANA'));
+                        ->where('productos.referencia', (string) ($item['referencia'] ?? ''))
+                        ->where('productos.color', (string) ($item['color'] ?? ''))
+                        ->where('productos.tipo', (string) ($item['tipo'] ?? 'PLANA'));
                 });
             }
         });

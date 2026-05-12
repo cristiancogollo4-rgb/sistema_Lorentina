@@ -19,13 +19,16 @@ $deactivated = 0;
 $activated = 0;
 
 foreach ($allProducts as $p) {
-    $key = ProductoCatalog::productKey($p->referencia, $p->color, $p->tipo);
-    if (!in_array($key, $validKeys)) {
+    $item = ProductoCatalog::find($p->referencia, $p->color, $p->tipo);
+    
+    if (!$item || empty($item['image_url'])) {
         $p->activo = 0;
         $p->save();
         $deactivated++;
     } else {
         $p->activo = 1;
+        // Apply catalog data (name and image)
+        ProductoCatalog::applyToProduct($p);
         $p->save();
         $activated++;
     }

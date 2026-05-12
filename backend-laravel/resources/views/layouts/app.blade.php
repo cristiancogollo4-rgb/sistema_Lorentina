@@ -101,6 +101,41 @@
             font-weight: 500;
         }
 
+        .filter-bar {
+            background: white;
+            padding: 24px;
+            border-radius: var(--radio);
+            box-shadow: var(--sombra);
+            margin-bottom: 30px;
+            border: 1px solid rgba(91,47,45,0.05);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .filter-label {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--chocolate);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .size-tag.active {
+            background: var(--primary) !important;
+            color: white !important;
+            box-shadow: 0 4px 10px rgba(50, 34, 20, 0.2);
+        }
+
         nav {
             display: flex;
             align-items: center;
@@ -159,34 +194,49 @@
         }
 
         .btn {
-            background: linear-gradient(135deg, var(--chocolate), var(--chocolate-2));
-            color: white;
-            padding: 12px 19px;
+            background: var(--primary);
+            color: white !important;
+            padding: 12px 24px;
             border: none;
             border-radius: 999px;
             cursor: pointer;
             display: inline-block;
             font-weight: 800;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 9px 22px rgba(91, 47, 45, 0.22);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(50, 34, 20, 0.2);
             font-size: 14px;
+            text-align: center;
         }
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 13px 28px rgba(91, 47, 45, 0.30);
+            box-shadow: 0 8px 25px rgba(50, 34, 20, 0.3);
+            filter: brightness(1.2);
         }
 
         .btn-outline {
-            background: transparent;
-            color: var(--chocolate);
-            border: 1.6px solid var(--chocolate);
+            background: white;
+            color: var(--primary) !important;
+            border: 2px solid var(--primary);
             box-shadow: none;
         }
 
         .btn-outline:hover {
-            background: var(--chocolate);
-            color: white;
+            background: var(--primary);
+            color: white !important;
+        }
+
+        /* Size Selector Styles */
+        .size-option input:checked + .size-btn {
+            background: var(--primary) !important;
+            color: white !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 4px 10px rgba(50, 34, 20, 0.2);
+        }
+
+        .size-btn:hover {
+            border-color: var(--primary) !important;
+            color: var(--primary);
         }
 
         .btn-light {
@@ -882,7 +932,37 @@
                 padding: 0 11px;
             }
         }
+
+        /* Carousel Globals */
+        .carousel-dots {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 5;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .dot.active {
+            background: white;
+            width: 12px;
+            border-radius: 4px;
+        }
+
+        .main-img {
+            transition: opacity 0.4s ease;
+        }
     </style>
+    @stack('styles')
 </head>
 
 <body>
@@ -932,6 +1012,94 @@
         <p>© 2026 Lorentina – Elegancia y Calidad en Calzado Artesanal</p>
     </footer>
 
-</body>
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
+    <script>
+        let intervals = new Map();
+
+        function startCarousel(card) {
+            const images = JSON.parse(card.dataset.images);
+            if (images.length <= 1) return;
+
+            const imgElement = card.querySelector('.main-img');
+            const dots = card.querySelectorAll('.dot');
+            let currentIdx = 0;
+
+            const interval = setInterval(() => {
+                currentIdx = (currentIdx + 1) % images.length;
+                
+                // Fade effect
+                imgElement.style.opacity = 0.7;
+                setTimeout(() => {
+                    const nextSrc = images[currentIdx];
+                    setImgSrc(imgElement, nextSrc);
+                    imgElement.style.opacity = 1;
+                    
+                    // Update dots
+                    dots.forEach((dot, i) => {
+                        dot.classList.toggle('active', i === currentIdx);
+                    });
+                }, 200);
+            }, 2500);
+
+            intervals.set(card, interval);
+        }
+
+        function stopCarousel(card) {
+            if (intervals.has(card)) {
+                clearInterval(intervals.get(card));
+                intervals.delete(card);
+                
+                const images = JSON.parse(card.dataset.images);
+                const imgElement = card.querySelector('.main-img');
+                const dots = card.querySelectorAll('.dot');
+                
+                setImgSrc(imgElement, images[0]);
+                dots.forEach((dot, i) => {
+                    dot.classList.toggle('active', i === 0);
+                });
+            }
+        }
+
+        async function setImgSrc(imgElement, src) {
+            if (src.toLowerCase().endsWith('.heic')) {
+                // Check if already converted and cached in a data attribute
+                if (imgElement.dataset.heicCache && imgElement.dataset.heicOriginal === src) {
+                    imgElement.src = imgElement.dataset.heicCache;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(src);
+                    const blob = await response.blob();
+                    const conversionResult = await heic2any({
+                        blob,
+                        toType: "image/jpeg",
+                        quality: 0.7
+                    });
+                    
+                    const url = URL.createObjectURL(Array.isArray(conversionResult) ? conversionResult[0] : conversionResult);
+                    imgElement.src = url;
+                    imgElement.dataset.heicCache = url;
+                    imgElement.dataset.heicOriginal = src;
+                } catch (e) {
+                    console.error("Error converting HEIC:", e);
+                    imgElement.src = src; // Fallback
+                }
+            } else {
+                imgElement.src = src;
+            }
+        }
+
+        // Initialize HEIC images on load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('img').forEach(img => {
+                if (img.src.toLowerCase().endsWith('.heic')) {
+                    setImgSrc(img, img.src);
+                }
+            });
+        });
+    </script>
+    @stack('scripts')
+</body>
 </html>
