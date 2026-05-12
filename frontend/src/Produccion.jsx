@@ -6,6 +6,9 @@ function Produccion({ usuario }) {
   const [color, setColor] = useState('');
   const [categoria, setCategoria] = useState('');
   const [destino, setDestino] = useState('STOCK');
+  const [clienteId, setClienteId] = useState('');
+  const [vendedorId, setVendedorId] = useState('');
+  const [precioVentaUnitario, setPrecioVentaUnitario] = useState('');
   const [materiales, setMateriales] = useState('');
   const [cortadorId, setCortadorId] = useState('');
   const [tallas, setTallas] = useState({ t35: 0, t36: 0, t37: 0, t38: 0, t39: 0, t40: 0, t41: 0, t42: 0 });
@@ -20,12 +23,35 @@ function Produccion({ usuario }) {
 
   const [empleados, setEmpleados] = useState([]);
   const [tarifas, setTarifas] = useState([]);
+  const [mayoristas, setMayoristas] = useState([]);
   const [showTarifasModal, setShowTarifasModal] = useState(false);
+  const [showMayoristaModal, setShowMayoristaModal] = useState(false);
+  const [nuevoMayorista, setNuevoMayorista] = useState({
+    nombre: '',
+    telefono: '',
+    email: '',
+    direccion: '',
+    pais: 'Colombia',
+    departamento: 'Santander',
+    ciudad: 'Bucaramanga',
+    moneda_preferida: 'COP',
+    tipo_cliente: 'MAYORISTA',
+  });
 
   useEffect(() => {
     api.get('/usuarios').then(res => setEmpleados(res.data)).catch(err => console.error(err));
     api.get('/tarifas').then(res => setTarifas(res.data)).catch(err => console.error(err));
+    cargarMayoristas();
   }, []);
+
+  const cargarMayoristas = async () => {
+    try {
+      const res = await api.get('/clientes?tipo=MAYORISTA');
+      setMayoristas(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleTarifaChange = (id, campo, valor) => {
     setTarifas(tarifas.map(t => t.id === id ? { ...t, [campo]: parseInt(valor) || 0 } : t));
@@ -49,9 +75,13 @@ function Produccion({ usuario }) {
     e.preventDefault();
     const totalPares = Object.values(tallas).reduce((a, b) => a + b, 0);
     if (totalPares === 0) return alert("Debes ingresar al menos un par.");
+    if (destino === 'CLIENTE' && !clienteId) return alert("Selecciona un cliente mayorista para esta orden.");
 
     const payload = {
       referencia, color, categoria, destino, materiales, 
+      clienteId: destino === 'CLIENTE' ? Number(clienteId) : null,
+      vendedorId: destino === 'CLIENTE' && vendedorId ? Number(vendedorId) : null,
+      precioVentaUnitario: destino === 'CLIENTE' && precioVentaUnitario !== '' ? Number(precioVentaUnitario) : null,
       cortadorId: cortadorId || null,
       ...tallas,
       isEspecial: esPedidoEspecial,
@@ -67,10 +97,41 @@ function Produccion({ usuario }) {
       alert("✅ Orden de fabricación creada con éxito.");
       // Reset
       setReferencia(''); setColor(''); setTallas({ t35: 0, t36: 0, t37: 0, t38: 0, t39: 0, t40: 0, t41: 0, t42: 0 });
+      setDestino('STOCK'); setClienteId(''); setVendedorId(''); setPrecioVentaUnitario('');
       setEsPedidoEspecial(false);
       setPrecioManualCorte(''); setPrecioManualArmado(''); setPrecioManualCostura(''); setPrecioManualSoladura(''); setPrecioManualEmplantillado('');
     } catch (error) {
       alert("Error: " + (error.response?.data?.error || "Error de conexión"));
+    }
+  };
+
+  const guardarMayorista = async () => {
+    if (!nuevoMayorista.nombre.trim()) return alert('El nombre del mayorista es obligatorio.');
+    if (!nuevoMayorista.departamento.trim()) return alert('El departamento es obligatorio.');
+    if (!nuevoMayorista.ciudad.trim()) return alert('La ciudad es obligatoria.');
+
+    try {
+      const res = await api.post('/clientes', {
+        ...nuevoMayorista,
+        tipo_cliente: 'MAYORISTA',
+        vendedor_id: usuario?.id ?? null,
+      });
+      await cargarMayoristas();
+      setClienteId(String(res.data.id));
+      setShowMayoristaModal(false);
+      setNuevoMayorista({
+        nombre: '',
+        telefono: '',
+        email: '',
+        direccion: '',
+        pais: 'Colombia',
+        departamento: 'Santander',
+        ciudad: 'Bucaramanga',
+        moneda_preferida: 'COP',
+        tipo_cliente: 'MAYORISTA',
+      });
+    } catch (error) {
+      alert("Error al crear mayorista: " + (error.response?.data?.message || error.response?.data?.error || "Error de conexiÃ³n"));
     }
   };
 
@@ -182,11 +243,72 @@ function Produccion({ usuario }) {
 
             <div className="lorentina-input-group">
               <label>DESTINO FINAL</label>
-              <select className="lorentina-input" value={destino} onChange={e => setDestino(e.target.value)}>
+              <select
+                className="lorentina-input"
+                value={destino}
+                onChange={e => {
+                  setDestino(e.target.value);
+                  if (e.target.value === 'STOCK') {
+                    setClienteId('');
+                    setVendedorId('');
+                    setPrecioVentaUnitario('');
+                  }
+                }}
+              >
                 <option value="STOCK">🏭 ALMACÉN (Stock Lorentina)</option>
-                <option value="CLIENTE">👤 PEDIDO CLIENTE (Directo)</option>
+                <option value="CLIENTE">Pedido cliente mayorista</option>
               </select>
             </div>
+
+            {destino === 'CLIENTE' && (
+              <div className="lorentina-input-group" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '10px' }}>
+                <label>CLIENTE MAYORISTA</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    className="lorentina-input"
+                    value={clienteId}
+                    onChange={e => setClienteId(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Seleccionar mayorista --</option>
+                    {mayoristas.map(cliente => (
+                      <option key={cliente.id} value={cliente.id}>
+                        {cliente.nombre} {cliente.ciudad ? `- ${cliente.ciudad}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowMayoristaModal(true)}
+                    style={{ border: 'none', borderRadius: '10px', background: '#582e2e', color: 'white', padding: '0 14px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    + Mayorista
+                  </button>
+                </div>
+                <label style={{ marginTop: '12px' }}>VENDEDOR RESPONSABLE (OPCIONAL)</label>
+                <select
+                  className="lorentina-input"
+                  value={vendedorId}
+                  onChange={e => setVendedorId(e.target.value)}
+                >
+                  <option value="">Administracion</option>
+                  {empleados.filter(emp => emp.rol === 'VENDEDOR').map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombre} {emp.apellido || ''}
+                    </option>
+                  ))}
+                </select>
+                <label style={{ marginTop: '12px' }}>PRECIO DE VENTA POR PAR (OPCIONAL)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="lorentina-input"
+                  placeholder="Si lo dejas vacio usa el precio mayorista del producto"
+                  value={precioVentaUnitario}
+                  onChange={e => setPrecioVentaUnitario(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="lorentina-input-group">
               <label>ASIGNAR A CORTADOR</label>
@@ -343,6 +465,31 @@ function Produccion({ usuario }) {
                   💾 Guardar Todos los Cambios
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMayoristaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: '26px', width: '95%', maxWidth: '620px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, color: '#582e2e' }}>Nuevo cliente mayorista</h3>
+              <button type="button" onClick={() => setShowMayoristaModal(false)} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>X</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <input className="lorentina-input" placeholder="Nombre del negocio o cliente *" value={nuevoMayorista.nombre} onChange={e => setNuevoMayorista({ ...nuevoMayorista, nombre: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+              <input className="lorentina-input" placeholder="Telefono" value={nuevoMayorista.telefono} onChange={e => setNuevoMayorista({ ...nuevoMayorista, telefono: e.target.value })} />
+              <input className="lorentina-input" placeholder="Email" type="email" value={nuevoMayorista.email} onChange={e => setNuevoMayorista({ ...nuevoMayorista, email: e.target.value })} />
+              <input className="lorentina-input" placeholder="Departamento *" value={nuevoMayorista.departamento} onChange={e => setNuevoMayorista({ ...nuevoMayorista, departamento: e.target.value })} />
+              <input className="lorentina-input" placeholder="Ciudad *" value={nuevoMayorista.ciudad} onChange={e => setNuevoMayorista({ ...nuevoMayorista, ciudad: e.target.value })} />
+              <input className="lorentina-input" placeholder="Direccion" value={nuevoMayorista.direccion} onChange={e => setNuevoMayorista({ ...nuevoMayorista, direccion: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button type="button" onClick={() => setShowMayoristaModal(false)} style={{ padding: '11px 18px', border: 'none', borderRadius: '10px', background: '#e2e8f0', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button type="button" onClick={guardarMayorista} style={{ padding: '11px 22px', border: 'none', borderRadius: '10px', background: '#582e2e', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Guardar mayorista</button>
             </div>
           </div>
         </div>

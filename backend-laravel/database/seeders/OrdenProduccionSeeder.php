@@ -3,9 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Cliente;
+use App\Models\DetalleVenta;
 use App\Models\OrdenProduccion;
+use App\Models\Producto;
 use App\Models\TarifaCategoria;
 use App\Models\User;
+use App\Models\Venta;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -46,7 +49,7 @@ class OrdenProduccionSeeder extends Seeder
                 'materiales' => 'Cuero sintetico, suela TR, hebilla dorada',
                 'observacion' => 'Pedido urgente para exhibicion',
                 'categoria' => 'ROMANA',
-                'destino' => 'Bogota',
+                'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['compras@calzadorivera.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
                 'armador_id' => null,
@@ -75,7 +78,7 @@ class OrdenProduccionSeeder extends Seeder
                 'materiales' => 'Capellada microfibra, suela PVC, plantilla confort',
                 'observacion' => 'Revisar horma 37 y 38',
                 'categoria' => 'CLASICA',
-                'destino' => 'Medellin',
+                'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['pedidos@boutiquevalentina.co'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
                 'armador_id' => $usuarios['jackeline.rojas'] ?? null,
@@ -106,8 +109,8 @@ class OrdenProduccionSeeder extends Seeder
                 'materiales' => 'Cuero vacuno, forro textil, suela expandida',
                 'observacion' => 'Cliente solicita empaque individual',
                 'categoria' => 'ZARA',
-                'destino' => 'Barranquilla',
-                'cliente_id' => $clientes['maria.lopez@gmail.com'] ?? null,
+                'destino' => 'CLIENTE',
+                'cliente_id' => $clientes['compras@calzadorivera.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
                 'armador_id' => $usuarios['jackeline.rojas'] ?? null,
                 'costurero_id' => $usuarios['yolanda.diaz'] ?? null,
@@ -140,7 +143,7 @@ class OrdenProduccionSeeder extends Seeder
                 'materiales' => 'Sintetico premium, suela EVA, plantilla memory foam',
                 'observacion' => 'Lote listo para despacho',
                 'categoria' => 'ESPECIAL',
-                'destino' => 'Bucaramanga',
+                'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['ventas@eltrebol.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
                 'armador_id' => $usuarios['jackeline.rojas'] ?? null,
@@ -178,7 +181,7 @@ class OrdenProduccionSeeder extends Seeder
                 $totalPares += $cantidad;
             }
 
-            OrdenProduccion::updateOrCreate(
+            $ordenCreada = OrdenProduccion::updateOrCreate(
                 ['numero_orden' => $orden['numero_orden']],
                 array_merge($orden, $tallas, [
                     'precio_corte' => $orden['precio_corte'] ?? (int) ($tarifa?->precio_corte ?? 0),
@@ -189,6 +192,78 @@ class OrdenProduccionSeeder extends Seeder
                     'total_pares' => $totalPares,
                 ])
             );
+
+            if ($ordenCreada->cliente_id && strtoupper((string) $ordenCreada->destino) === 'CLIENTE') {
+                $this->registrarVentaDesdeOrdenMayorista($ordenCreada);
+            }
+        }
+    }
+
+    private function registrarVentaDesdeOrdenMayorista(OrdenProduccion $orden): void
+    {
+        $nota = "Venta registrada automaticamente desde orden de fabricacion {$orden->numero_orden}.";
+        $ventaIds = Venta::query()->where('notas', $nota)->pluck('id');
+
+        if ($ventaIds->isNotEmpty()) {
+            DetalleVenta::query()->whereIn('venta_id', $ventaIds)->delete();
+            Venta::query()->whereIn('id', $ventaIds)->delete();
+        }
+
+        $producto = Producto::query()->firstOrCreate(
+            [
+                'referencia' => (string) $orden->referencia,
+                'color' => (string) $orden->color,
+                'tipo' => str_starts_with(strtoupper((string) $orden->referencia), 'Z') ? 'PLATAFORMA' : 'PLANA',
+            ],
+            [
+                'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
+                'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
+                'precio_detal' => 0,
+                'precio_mayor' => 0,
+                'costo_produccion' => 0,
+                'activo' => true,
+            ]
+        );
+
+        $responsableId = User::query()
+            ->where('rol', 'ADMIN')
+            ->where('activo', true)
+            ->orderBy('id')
+            ->value('id');
+
+        if (! $responsableId) {
+            return;
+        }
+
+        $precioUnitario = (float) ($producto->precio_mayor ?: $producto->precio_detal ?: 0);
+        $venta = Venta::query()->create([
+            'cliente_id' => $orden->cliente_id,
+            'vendedor_id' => $responsableId,
+            'canal_venta' => 'FABRICA',
+            'local_id' => null,
+            'fecha_venta' => $orden->fecha_inicio,
+            'total' => $precioUnitario * (int) $orden->total_pares,
+            'metodo_pago' => 'PENDIENTE',
+            'notas' => $nota,
+        ]);
+
+        foreach (range(34, 44) as $talla) {
+            $cantidad = (int) ($orden->{"t{$talla}"} ?? 0);
+            if ($cantidad <= 0) {
+                continue;
+            }
+
+            DetalleVenta::query()->create([
+                'venta_id' => $venta->id,
+                'producto_id' => $producto->id,
+                'orden_produccion_id' => $orden->id,
+                'numero_orden' => $orden->numero_orden,
+                'referencia' => $orden->referencia,
+                'color' => $orden->color,
+                'talla' => $talla,
+                'cantidad' => $cantidad,
+                'precio_unitario' => $precioUnitario,
+            ]);
         }
     }
 }

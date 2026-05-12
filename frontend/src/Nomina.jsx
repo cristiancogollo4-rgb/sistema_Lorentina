@@ -34,6 +34,7 @@ export default function Nomina() {
   const [empleadoActivo, setEmpleadoActivo] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState('TODOS');
+  const [pagandoId, setPagandoId] = useState(null);
 
   async function cargarNomina() {
     setCargando(true);
@@ -46,6 +47,28 @@ export default function Nomina() {
       setError(e.response?.data?.error || 'No se pudo cargar la nomina.');
     } finally {
       setCargando(false);
+    }
+  }
+
+  async function marcarPagado(empleado) {
+    if (!empleado || empleado.pagado) return;
+    const ok = window.confirm(`Registrar pago de ${empleado.nombre} por ${formatoMoneda(empleado.totalGanado)}?`);
+    if (!ok) return;
+
+    setPagandoId(empleado.empleadoId);
+    setError('');
+    try {
+      await api.post('/nomina/pagos', {
+        empleadoId: empleado.empleadoId,
+        inicio,
+        fin,
+      });
+      await cargarNomina();
+      setEmpleadoActivo(empleado.empleadoId);
+    } catch (e) {
+      setError(e.response?.data?.error || 'No se pudo registrar el pago.');
+    } finally {
+      setPagandoId(null);
     }
   }
 
@@ -115,6 +138,8 @@ export default function Nomina() {
         <>
           <div style={kpiGrid}>
             <KpiCard label="Total a pagar" value={formatoMoneda(data.totales?.pagar)} tone="#582e2e" />
+            <KpiCard label="Pagado" value={formatoMoneda(data.totales?.pagado)} tone="#166534" />
+            <KpiCard label="Pendiente" value={formatoMoneda(data.totales?.pendiente)} tone="#b45309" />
             <KpiCard label="Produccion" value={formatoMoneda(data.totales?.produccion)} tone="#1565c0" />
             <KpiCard label="Comisiones ventas" value={formatoMoneda(data.totales?.ventas)} tone="#2e7d32" />
             <KpiCard label="Pares liquidados" value={data.totales?.pares || 0} tone="#8d6e63" />
@@ -142,7 +167,9 @@ export default function Nomina() {
                   >
                     <div>
                       <div style={{ fontWeight: 800, color: '#1e293b' }}>{empleado.nombre}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{empleado.rol}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                        {empleado.rol} · {empleado.pagado ? 'Pagado' : 'Pendiente'}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800, color: '#582e2e' }}>{formatoMoneda(empleado.totalGanado)}</div>
@@ -161,12 +188,27 @@ export default function Nomina() {
                 <div>
                   <div style={panelHeader}>{seleccionado?.nombre || 'Detalle'}</div>
                   <div style={{ color: '#64748b', fontSize: '0.9rem' }}>{seleccionado?.rol || ''}</div>
+                  {seleccionado && (
+                    <span style={badge(seleccionado.pagado ? '#dcfce7' : '#ffedd5', seleccionado.pagado ? '#166534' : '#9a3412')}>
+                      {seleccionado.pagado ? `Pagado ${seleccionado.pago?.fechaPago || ''}` : 'Pendiente de pago'}
+                    </span>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Total a pagar</div>
                   <div style={{ fontSize: '1.7rem', fontWeight: 900, color: '#582e2e' }}>
                     {formatoMoneda(seleccionado?.totalGanado)}
                   </div>
+                  {seleccionado && !seleccionado.pagado && (
+                    <button
+                      type="button"
+                      onClick={() => marcarPagado(seleccionado)}
+                      disabled={pagandoId === seleccionado.empleadoId || Number(seleccionado.totalGanado || 0) <= 0}
+                      style={{ ...btnPrimario, marginTop: '10px', opacity: pagandoId === seleccionado.empleadoId ? 0.7 : 1 }}
+                    >
+                      {pagandoId === seleccionado.empleadoId ? 'Registrando...' : 'Marcar pagado'}
+                    </button>
+                  )}
                 </div>
               </div>
 

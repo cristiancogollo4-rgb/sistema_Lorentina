@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
+use App\Models\Cliente;
 use App\Models\DetalleVenta;
 use App\Models\InventarioMovimiento;
+use App\Models\NominaPago;
 use App\Models\OrdenProduccion;
 use App\Models\Producto;
 use App\Models\TarifaCategoria;
@@ -41,7 +43,10 @@ class ProductionController extends Controller
             'isEspecial' => ['nullable', 'boolean'],
             'materiales' => ['required', 'string'],
             'observacion' => ['nullable', 'string'],
-            'destino' => ['required', 'string'],
+            'destino' => ['required', 'string', 'in:STOCK,CLIENTE'],
+            'clienteId' => ['nullable', 'integer', 'exists:clientes,id'],
+            'vendedorId' => ['nullable', 'integer', 'exists:users,id'],
+            'precioVentaUnitario' => ['nullable', 'numeric', 'min:0'],
             'cortadorId' => ['nullable', 'integer'],
             'precioManualCorte' => ['nullable', 'numeric'],
             'precioManualArmado' => ['nullable', 'numeric'],
@@ -64,6 +69,24 @@ class ProductionController extends Controller
         $isEspecial = filter_var($data['isEspecial'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $categoria = $data['categoria'] ?? 'ROMANA';
         $precios = $this->resolverPrecios($isEspecial, $categoria, $data);
+        $clienteId = null;
+
+        if ($data['destino'] === 'CLIENTE') {
+            if (empty($data['clienteId'])) {
+                return response()->json([
+                    'error' => 'Selecciona un cliente mayorista para fabricar por pedido.',
+                ], 422);
+            }
+
+            $cliente = Cliente::query()->findOrFail((int) $data['clienteId']);
+            if (strtoupper((string) $cliente->tipo_cliente) !== 'MAYORISTA') {
+                return response()->json([
+                    'error' => 'Las ordenes por pedido cliente solo pueden asociarse a clientes mayoristas.',
+                ], 422);
+            }
+
+            $clienteId = (int) $cliente->id;
+        }
 
         $totalPares = 0;
         $tallas = [];
@@ -73,28 +96,43 @@ class ProductionController extends Controller
             $totalPares += $valor;
         }
 
-        $orden = OrdenProduccion::create([
-            'numero_orden' => 'OP-' . substr((string) round(microtime(true) * 1000), -6),
-            'referencia' => $data['referencia'],
-            'color' => $data['color'],
-            'categoria' => $categoria,
-            'precio_corte' => $precios['corte'],
-            'precio_armado' => $precios['armado'],
-            'precio_costura' => $precios['costura'],
-            'precio_soladura' => $precios['soladura'],
-            'precio_emplantillado' => $precios['emplantillado'],
-            'materiales' => $data['materiales'],
-            'observacion' => $data['observacion'] ?? null,
-            'destino' => $data['destino'],
-            'cortador_id' => $data['cortadorId'] ?? null,
-            'total_pares' => $totalPares,
-            'estado' => 'EN_CORTE',
-            ...$tallas,
-        ]);
+        $venta = null;
+        $orden = DB::transaction(function () use ($data, $categoria, $precios, $tallas, $totalPares, $clienteId, &$venta) {
+            $orden = OrdenProduccion::create([
+                'numero_orden' => 'OP-' . substr((string) round(microtime(true) * 1000), -6),
+                'referencia' => $data['referencia'],
+                'color' => $data['color'],
+                'categoria' => $categoria,
+                'precio_corte' => $precios['corte'],
+                'precio_armado' => $precios['armado'],
+                'precio_costura' => $precios['costura'],
+                'precio_soladura' => $precios['soladura'],
+                'precio_emplantillado' => $precios['emplantillado'],
+                'materiales' => $data['materiales'],
+                'observacion' => $data['observacion'] ?? null,
+                'destino' => $data['destino'],
+                'cliente_id' => $clienteId,
+                'cortador_id' => $data['cortadorId'] ?? null,
+                'total_pares' => $totalPares,
+                'estado' => 'EN_CORTE',
+                ...$tallas,
+            ]);
+
+            if ($clienteId !== null) {
+                $venta = $this->registrarVentaDesdeOrdenMayorista(
+                    $orden,
+                    $data['vendedorId'] ?? null,
+                    isset($data['precioVentaUnitario']) ? (float) $data['precioVentaUnitario'] : null
+                );
+            }
+
+            return $orden;
+        });
 
         return response()->json([
             'msg' => 'Orden creada con precios desglosados',
             'orden' => $orden->numero_orden,
+            'ventaId' => $venta?->id,
             'precioAplicado' => $precios['corte'],
         ]);
     }
@@ -428,87 +466,37 @@ class ProductionController extends Controller
 
     public function nomina(Request $request, int $empleadoId): JsonResponse
     {
-        $rol = strtoupper((string) $request->query('rol', ''));
-        $query = OrdenProduccion::query();
-        $orderColumn = 'id';
+        [$inicio, $fin] = $this->periodoNominaDesdeRequest($request);
+        $empleado = User::find($empleadoId);
 
-        switch ($rol) {
-            case 'CORTE':
-                $query->where('cortador_id', $empleadoId)->whereNotNull('fecha_fin_corte');
-                $orderColumn = 'fecha_fin_corte';
-                break;
-            case 'ARMADO':
-                $query->where('armador_id', $empleadoId)->whereNotNull('fecha_fin_armado');
-                $orderColumn = 'fecha_fin_armado';
-                break;
-            case 'COSTURA':
-                $query->where('costurero_id', $empleadoId)->whereNotNull('fecha_fin_costura');
-                $orderColumn = 'fecha_fin_costura';
-                break;
-            case 'SOLADURA':
-                $query->where('solador_id', $empleadoId)->whereNotNull('fecha_fin_soladura');
-                $orderColumn = 'fecha_fin_soladura';
-                break;
-            case 'EMPLANTILLADO':
-                $query->where('emplantillador_id', $empleadoId)->whereNotNull('fecha_fin_emplantillado');
-                $orderColumn = 'fecha_fin_emplantillado';
-                break;
-            default:
-                return response()->json(['totalGanado' => 0, 'detalle' => []]);
+        if (! $empleado) {
+            return response()->json(['error' => 'Empleado no encontrado.'], 404);
         }
 
-        $ordenes = $query->orderByDesc($orderColumn)->get();
-
-        $totalGanado = 0;
-        $detalle = $ordenes->map(function (OrdenProduccion $orden) use ($rol, &$totalGanado) {
-            $precio = 0;
-            $fecha = null;
-
-            if ($rol === 'CORTE') {
-                $precio = $orden->precio_corte;
-                $fecha = $orden->fecha_fin_corte;
-            } elseif ($rol === 'ARMADO') {
-                $precio = $orden->precio_armado;
-                $fecha = $orden->fecha_fin_armado;
-            } elseif ($rol === 'COSTURA') {
-                $precio = $orden->precio_costura;
-                $fecha = $orden->fecha_fin_costura;
-            } elseif ($rol === 'SOLADURA') {
-                $precio = $orden->precio_soladura;
-                $fecha = $orden->fecha_fin_soladura;
-            } elseif ($rol === 'EMPLANTILLADO') {
-                $precio = $orden->precio_emplantillado;
-                $fecha = $orden->fecha_fin_emplantillado ?: $orden->fecha_fin_soladura;
-            }
-
-            $subtotal = $orden->total_pares * $precio;
-            $totalGanado += $subtotal;
-
-            return [
-                'id' => $orden->id,
-                'numeroOrden' => $orden->numero_orden,
-                'referencia' => $orden->referencia,
-                'pares' => $orden->total_pares,
-                'precio' => $precio,
-                'subtotal' => $subtotal,
-                'fecha' => optional($fecha)->toISOString(),
-            ];
-        })->values();
+        $nomina = $this->calcularNominaEmpleado($empleado, $inicio, $fin);
+        $historial = NominaPago::query()
+            ->where('empleado_id', $empleadoId)
+            ->orderByDesc('periodo_fin')
+            ->limit(12)
+            ->get()
+            ->map(fn (NominaPago $pago) => $this->formatPagoNomina($pago))
+            ->values();
 
         return response()->json([
-            'totalGanado' => $totalGanado,
-            'detalle' => $detalle,
+            ...$nomina,
+            'periodo' => [
+                'inicio' => $inicio->toDateString(),
+                'fin' => $fin->toDateString(),
+                'diaPago' => 'SABADO',
+                'fechaPago' => $this->fechaPagoSabado($fin)->toDateString(),
+            ],
+            'historial' => $historial,
         ]);
     }
 
     public function nominaResumen(Request $request): JsonResponse
     {
-        $inicio = $request->query('inicio')
-            ? Carbon::parse((string) $request->query('inicio'))->startOfDay()
-            : now()->startOfWeek();
-        $fin = $request->query('fin')
-            ? Carbon::parse((string) $request->query('fin'))->endOfDay()
-            : now()->startOfWeek()->addDays(5)->endOfDay();
+        [$inicio, $fin] = $this->periodoNominaDesdeRequest($request);
 
         if ($fin->lessThan($inicio)) {
             return response()->json(['error' => 'La fecha final no puede ser anterior a la fecha inicial.'], 422);
@@ -520,99 +508,24 @@ class ProductionController extends Controller
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'apellido', 'rol']);
 
-        $produccion = $empleados
-            ->filter(fn (User $empleado) => $this->rolProduccionConfig((string) $empleado->rol) !== null)
-            ->map(function (User $empleado) use ($inicio, $fin) {
-                $config = $this->rolProduccionConfig((string) $empleado->rol);
-                $ordenes = OrdenProduccion::query()
-                    ->where($config['empleado'], $empleado->id)
-                    ->whereBetween($config['fecha'], [$inicio, $fin])
-                    ->orderByDesc($config['fecha'])
-                    ->get();
+        $pagos = NominaPago::query()
+            ->whereDate('periodo_inicio', $inicio->toDateString())
+            ->whereDate('periodo_fin', $fin->toDateString())
+            ->get()
+            ->keyBy('empleado_id');
 
-                $totalPares = 0;
-                $totalGanado = 0;
-                $detalle = $ordenes->map(function (OrdenProduccion $orden) use ($config, &$totalPares, &$totalGanado) {
-                    $pares = (int) $orden->total_pares;
-                    $precio = (int) $orden->{$config['precio']};
-                    $subtotal = $pares * $precio;
-                    $totalPares += $pares;
-                    $totalGanado += $subtotal;
-
-                    return [
-                        'id' => $orden->id,
-                        'tipo' => 'PRODUCCION',
-                        'numeroOrden' => $orden->numero_orden,
-                        'referencia' => $orden->referencia,
-                        'color' => $orden->color,
-                        'categoria' => $orden->categoria,
-                        'tarea' => $config['label'],
-                        'pares' => $pares,
-                        'valorUnitario' => $precio,
-                        'subtotal' => $subtotal,
-                        'fecha' => optional($orden->{$config['fecha']})->toISOString(),
-                    ];
-                })->values();
+        $empleadosNomina = $empleados
+            ->map(function (User $empleado) use ($inicio, $fin, $pagos) {
+                $nomina = $this->calcularNominaEmpleado($empleado, $inicio, $fin);
+                $pago = $pagos->get($empleado->id);
 
                 return [
-                    'empleadoId' => $empleado->id,
-                    'nombre' => trim($empleado->nombre . ' ' . $empleado->apellido),
-                    'rol' => $empleado->rol,
-                    'totalTareas' => $detalle->count(),
-                    'totalPares' => $totalPares,
-                    'totalGanado' => $totalGanado,
-                    'detalle' => $detalle,
+                    ...$nomina,
+                    'pagado' => $pago !== null,
+                    'pago' => $pago ? $this->formatPagoNomina($pago) : null,
                 ];
             })
             ->values();
-
-        $vendedores = $empleados
-            ->filter(fn (User $empleado) => strtoupper((string) $empleado->rol) === 'VENDEDOR')
-            ->map(function (User $vendedor) use ($inicio, $fin) {
-                $ventas = Venta::query()
-                    ->with(['cliente:id,nombre,tipo_cliente', 'items'])
-                    ->where('vendedor_id', $vendedor->id)
-                    ->whereBetween('fecha_venta', [$inicio, $fin])
-                    ->orderByDesc('fecha_venta')
-                    ->get();
-
-                $totalPares = 0;
-                $totalComision = 0;
-                $detalle = $ventas->map(function (Venta $venta) use (&$totalPares, &$totalComision) {
-                    $tipoCliente = strtoupper((string) ($venta->cliente?->tipo_cliente ?? 'DETAL'));
-                    $esMayorista = in_array($tipoCliente, ['MAYORISTA', 'MAYOR'], true);
-                    $valorUnitario = $esMayorista ? 2500 : 5000;
-                    $pares = (int) $venta->items->sum('cantidad');
-                    $subtotal = $pares * $valorUnitario;
-                    $totalPares += $pares;
-                    $totalComision += $subtotal;
-
-                    return [
-                        'id' => $venta->id,
-                        'tipo' => 'VENTA',
-                        'cliente' => $venta->cliente?->nombre,
-                        'tipoCliente' => $esMayorista ? 'MAYORISTA' : 'DETAL',
-                        'pares' => $pares,
-                        'valorUnitario' => $valorUnitario,
-                        'subtotal' => $subtotal,
-                        'totalVenta' => (float) $venta->total,
-                        'fecha' => optional($venta->fecha_venta)->toISOString(),
-                    ];
-                })->values();
-
-                return [
-                    'empleadoId' => $vendedor->id,
-                    'nombre' => trim($vendedor->nombre . ' ' . $vendedor->apellido),
-                    'rol' => $vendedor->rol,
-                    'totalVentas' => $detalle->count(),
-                    'totalPares' => $totalPares,
-                    'totalGanado' => $totalComision,
-                    'detalle' => $detalle,
-                ];
-            })
-            ->values();
-
-        $empleadosNomina = $produccion->concat($vendedores)->values();
 
         return response()->json([
             'periodo' => [
@@ -628,10 +541,57 @@ class ProductionController extends Controller
                 'empleados' => $empleadosNomina->count(),
                 'pares' => (int) $empleadosNomina->sum('totalPares'),
                 'pagar' => (int) $empleadosNomina->sum('totalGanado'),
-                'produccion' => (int) $produccion->sum('totalGanado'),
-                'ventas' => (int) $vendedores->sum('totalGanado'),
+                'pagado' => (int) $empleadosNomina->filter(fn ($empleado) => $empleado['pagado'])->sum('totalGanado'),
+                'pendiente' => (int) $empleadosNomina->filter(fn ($empleado) => ! $empleado['pagado'])->sum('totalGanado'),
+                'produccion' => (int) $empleadosNomina->filter(fn ($empleado) => $empleado['tipoNomina'] === 'PRODUCCION')->sum('totalGanado'),
+                'ventas' => (int) $empleadosNomina->filter(fn ($empleado) => $empleado['tipoNomina'] === 'VENTAS')->sum('totalGanado'),
             ],
             'empleados' => $empleadosNomina,
+        ]);
+    }
+
+    public function registrarPagoNomina(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'empleadoId' => ['required', 'integer', 'exists:users,id'],
+            'inicio' => ['required', 'date'],
+            'fin' => ['required', 'date'],
+            'fechaPago' => ['nullable', 'date'],
+            'notas' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $inicio = Carbon::parse($data['inicio'])->startOfDay();
+        $fin = Carbon::parse($data['fin'])->endOfDay();
+
+        if ($fin->lessThan($inicio)) {
+            return response()->json(['error' => 'La fecha final no puede ser anterior a la fecha inicial.'], 422);
+        }
+
+        $empleado = User::findOrFail((int) $data['empleadoId']);
+        $nomina = $this->calcularNominaEmpleado($empleado, $inicio, $fin);
+
+        $pago = NominaPago::updateOrCreate(
+            [
+                'empleado_id' => $empleado->id,
+                'periodo_inicio' => $inicio->toDateString(),
+                'periodo_fin' => $fin->toDateString(),
+            ],
+            [
+                'fecha_pago' => isset($data['fechaPago'])
+                    ? Carbon::parse($data['fechaPago'])->toDateString()
+                    : $this->fechaPagoSabado($fin)->toDateString(),
+                'estado' => 'PAGADO',
+                'total_pares' => (int) $nomina['totalPares'],
+                'total_tareas' => (int) ($nomina['totalTareas'] ?? $nomina['totalVentas'] ?? 0),
+                'total_pagado' => (int) $nomina['totalGanado'],
+                'detalle' => $nomina['detalle'],
+                'notas' => $data['notas'] ?? null,
+            ]
+        );
+
+        return response()->json([
+            'mensaje' => 'Pago de nomina registrado correctamente.',
+            'pago' => $this->formatPagoNomina($pago),
         ]);
     }
 
@@ -672,6 +632,164 @@ class ProductionController extends Controller
         };
     }
 
+    private function periodoNominaDesdeRequest(Request $request): array
+    {
+        $inicio = $request->query('inicio')
+            ? Carbon::parse((string) $request->query('inicio'))->startOfDay()
+            : now()->startOfWeek(Carbon::MONDAY)->startOfDay();
+        $fin = $request->query('fin')
+            ? Carbon::parse((string) $request->query('fin'))->endOfDay()
+            : $inicio->copy()->addDays(5)->endOfDay();
+
+        return [$inicio, $fin];
+    }
+
+    private function fechaPagoSabado(Carbon $fecha): Carbon
+    {
+        $pago = $fecha->copy()->startOfDay();
+        while ($pago->dayOfWeek !== Carbon::SATURDAY) {
+            $pago->addDay();
+        }
+
+        return $pago;
+    }
+
+    private function calcularNominaEmpleado(User $empleado, Carbon $inicio, Carbon $fin): array
+    {
+        $rol = strtoupper((string) $empleado->rol);
+        $config = $this->rolProduccionConfig($rol);
+
+        if ($config) {
+            return $this->calcularNominaProduccion($empleado, $config, $inicio, $fin);
+        }
+
+        if ($rol === 'VENDEDOR') {
+            return $this->calcularNominaVendedor($empleado, $inicio, $fin);
+        }
+
+        return [
+            'empleadoId' => $empleado->id,
+            'nombre' => trim($empleado->nombre . ' ' . $empleado->apellido),
+            'rol' => $empleado->rol,
+            'tipoNomina' => 'SIN_NOMINA',
+            'totalTareas' => 0,
+            'totalVentas' => 0,
+            'totalPares' => 0,
+            'totalGanado' => 0,
+            'detalle' => [],
+        ];
+    }
+
+    private function calcularNominaProduccion(User $empleado, array $config, Carbon $inicio, Carbon $fin): array
+    {
+        $ordenes = OrdenProduccion::query()
+            ->where($config['empleado'], $empleado->id)
+            ->whereBetween($config['fecha'], [$inicio, $fin])
+            ->orderByDesc($config['fecha'])
+            ->get();
+
+        $totalPares = 0;
+        $totalGanado = 0;
+        $detalle = $ordenes->map(function (OrdenProduccion $orden) use ($config, &$totalPares, &$totalGanado) {
+            $pares = (int) $orden->total_pares;
+            $precio = (int) $orden->{$config['precio']};
+            $subtotal = $pares * $precio;
+            $totalPares += $pares;
+            $totalGanado += $subtotal;
+
+            return [
+                'id' => $orden->id,
+                'tipo' => 'PRODUCCION',
+                'numeroOrden' => $orden->numero_orden,
+                'referencia' => $orden->referencia,
+                'color' => $orden->color,
+                'categoria' => $orden->categoria,
+                'tarea' => $config['label'],
+                'pares' => $pares,
+                'precio' => $precio,
+                'valorUnitario' => $precio,
+                'subtotal' => $subtotal,
+                'fecha' => optional($orden->{$config['fecha']})->toISOString(),
+            ];
+        })->values();
+
+        return [
+            'empleadoId' => $empleado->id,
+            'nombre' => trim($empleado->nombre . ' ' . $empleado->apellido),
+            'rol' => $empleado->rol,
+            'tipoNomina' => 'PRODUCCION',
+            'totalTareas' => $detalle->count(),
+            'totalVentas' => 0,
+            'totalPares' => $totalPares,
+            'totalGanado' => $totalGanado,
+            'detalle' => $detalle,
+        ];
+    }
+
+    private function calcularNominaVendedor(User $vendedor, Carbon $inicio, Carbon $fin): array
+    {
+        $ventas = Venta::query()
+            ->with(['cliente:id,nombre,tipo_cliente', 'items'])
+            ->where('vendedor_id', $vendedor->id)
+            ->whereBetween('fecha_venta', [$inicio, $fin])
+            ->orderByDesc('fecha_venta')
+            ->get();
+
+        $totalPares = 0;
+        $totalComision = 0;
+        $detalle = $ventas->map(function (Venta $venta) use (&$totalPares, &$totalComision) {
+            $tipoCliente = strtoupper((string) ($venta->cliente?->tipo_cliente ?? 'DETAL'));
+            $esMayorista = in_array($tipoCliente, ['MAYORISTA', 'MAYOR'], true);
+            $valorUnitario = $esMayorista ? 2500 : 5000;
+            $pares = (int) $venta->items->sum('cantidad');
+            $subtotal = $pares * $valorUnitario;
+            $totalPares += $pares;
+            $totalComision += $subtotal;
+
+            return [
+                'id' => $venta->id,
+                'tipo' => 'VENTA',
+                'cliente' => $venta->cliente?->nombre,
+                'tipoCliente' => $esMayorista ? 'MAYORISTA' : 'DETAL',
+                'pares' => $pares,
+                'precio' => $valorUnitario,
+                'valorUnitario' => $valorUnitario,
+                'subtotal' => $subtotal,
+                'totalVenta' => (float) $venta->total,
+                'fecha' => optional($venta->fecha_venta)->toISOString(),
+            ];
+        })->values();
+
+        return [
+            'empleadoId' => $vendedor->id,
+            'nombre' => trim($vendedor->nombre . ' ' . $vendedor->apellido),
+            'rol' => $vendedor->rol,
+            'tipoNomina' => 'VENTAS',
+            'totalTareas' => 0,
+            'totalVentas' => $detalle->count(),
+            'totalPares' => $totalPares,
+            'totalGanado' => $totalComision,
+            'detalle' => $detalle,
+        ];
+    }
+
+    private function formatPagoNomina(NominaPago $pago): array
+    {
+        return [
+            'id' => $pago->id,
+            'empleadoId' => $pago->empleado_id,
+            'periodoInicio' => optional($pago->periodo_inicio)->toDateString(),
+            'periodoFin' => optional($pago->periodo_fin)->toDateString(),
+            'fechaPago' => optional($pago->fecha_pago)->toDateString(),
+            'estado' => $pago->estado,
+            'totalPares' => $pago->total_pares,
+            'totalTareas' => $pago->total_tareas,
+            'totalPagado' => $pago->total_pagado,
+            'detalle' => $pago->detalle ?? [],
+            'notas' => $pago->notas,
+        ];
+    }
+
     private function resolverPrecios(bool $isEspecial, string $categoria, array $data): array
     {
         if ($isEspecial) {
@@ -698,6 +816,81 @@ class ProductionController extends Controller
     private function debeEsperarIngresoStock(OrdenProduccion $orden): bool
     {
         return strtoupper((string) $orden->destino) === 'STOCK' && $orden->cliente_id === null;
+    }
+
+    private function registrarVentaDesdeOrdenMayorista(OrdenProduccion $orden, ?int $vendedorId, ?float $precioVentaUnitario = null): Venta
+    {
+        $producto = $this->productoParaOrden($orden);
+        $precioUnitario = $precioVentaUnitario ?? (float) ($producto->precio_mayor ?: $producto->precio_detal ?: 0);
+        $adminId = User::query()
+            ->where('rol', 'ADMIN')
+            ->where('activo', true)
+            ->orderBy('id')
+            ->value('id');
+
+        $responsableId = $vendedorId ?: $adminId;
+        if (! $responsableId) {
+            throw new \RuntimeException('No hay un usuario administrador activo para registrar la venta de fabrica.');
+        }
+
+        $venta = Venta::create([
+            'cliente_id' => $orden->cliente_id,
+            'vendedor_id' => $responsableId,
+            'canal_venta' => 'FABRICA',
+            'local_id' => null,
+            'metodo_pago' => 'PENDIENTE',
+            'titular_cuenta' => null,
+            'notas' => "Venta registrada automaticamente desde orden de fabricacion {$orden->numero_orden}.",
+            'total' => $precioUnitario * (int) $orden->total_pares,
+            'fecha_venta' => now(),
+        ]);
+
+        foreach (range(34, 44) as $talla) {
+            $cantidad = (int) ($orden->{"t{$talla}"} ?? 0);
+            if ($cantidad <= 0) {
+                continue;
+            }
+
+            DetalleVenta::create([
+                'venta_id' => $venta->id,
+                'producto_id' => $producto->id,
+                'orden_produccion_id' => $orden->id,
+                'numero_orden' => $orden->numero_orden,
+                'referencia' => $orden->referencia,
+                'color' => $orden->color,
+                'talla' => $talla,
+                'cantidad' => $cantidad,
+                'precio_unitario' => $precioUnitario,
+            ]);
+        }
+
+        return $venta;
+    }
+
+    private function productoParaOrden(OrdenProduccion $orden): Producto
+    {
+        $tipo = $this->inferirTipoProducto((string) $orden->referencia);
+
+        return Producto::query()->firstOrCreate(
+            [
+                'referencia' => (string) $orden->referencia,
+                'color' => (string) $orden->color,
+                'tipo' => $tipo,
+            ],
+            [
+                'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
+                'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
+                'precio_detal' => 0,
+                'precio_mayor' => 0,
+                'costo_produccion' => 0,
+                'activo' => true,
+                'imagen' => ProductoCatalog::imageUrlFor(
+                    (string) $orden->referencia,
+                    (string) $orden->color,
+                    $tipo
+                ),
+            ]
+        );
     }
 
     private function inferirTipoProducto(string $referencia): string

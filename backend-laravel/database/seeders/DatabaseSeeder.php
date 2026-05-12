@@ -17,7 +17,9 @@ class DatabaseSeeder extends Seeder
             ClienteSeeder::class,
             OrdenProduccionSeeder::class,
             LorentinaExcelSeeder::class,
+            CompleteExistingClientsSeeder::class,
             ProductCatalogSeeder::class,
+            DemoSystemDataSeeder::class,
         ]);
     }
 }
