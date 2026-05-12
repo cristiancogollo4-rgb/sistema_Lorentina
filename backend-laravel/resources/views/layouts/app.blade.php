@@ -48,6 +48,7 @@
             background-color: var(--background);
             color: var(--on-surface);
             line-height: 1.6;
+            overflow-x: hidden;
         }
 
         a {
@@ -74,11 +75,12 @@
         }
 
         .brand-logo {
-            width: 54px;
-            height: 54px;
-            border-radius: 15px;
-            object-fit: cover;
-            background: var(--chocolate);
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            object-fit: contain;
+            background: #fbf9f4;
+            padding: 5px;
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
         }
 
@@ -1210,7 +1212,7 @@
 
     <header>
         <div class="brand">
-            <img class="brand-logo" src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Lorentina">
+            <img class="brand-logo" src="{{ asset('images/coronalorentina.JPG') }}" alt="Lorentina">
 
             <div class="brand-text">
                 <h1>Lorentina</h1>

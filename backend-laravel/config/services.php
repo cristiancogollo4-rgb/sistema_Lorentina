@@ -37,6 +37,11 @@ return [
 
     'lorentina' => [
         'whatsapp_number' => env('LORENTINA_WHATSAPP_NUMBER', '573000000000'),
+        'instagram_url' => env('LORENTINA_INSTAGRAM_URL', 'https://www.instagram.com/lorentina'),
+        'facebook_url' => env('LORENTINA_FACEBOOK_URL', 'https://www.facebook.com/lorentina'),
+        'tiktok_url' => env('LORENTINA_TIKTOK_URL', 'https://www.tiktok.com/@lorentina'),
+        'email' => env('LORENTINA_CONTACT_EMAIL', 'ventas@lorentina.com'),
+        'city' => env('LORENTINA_CITY', 'Bucaramanga, Colombia'),
     ],
 
 ];

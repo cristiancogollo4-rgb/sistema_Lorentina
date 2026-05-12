@@ -5,23 +5,58 @@ namespace App\Http\Controllers;
 use App\Models\Producto;
 use App\Support\ProductoCatalog;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class EcommerceController extends Controller
 {
     public function landing()
     {
-        $query = Producto::where('productos.activo', 1)
+        $ventasSemana = DB::table('detalle_ventas')
+            ->join('ventas', 'ventas.id', '=', 'detalle_ventas.venta_id')
+            ->where('ventas.fecha_venta', '>=', now()->subDays(7))
+            ->select('detalle_ventas.producto_id', DB::raw('SUM(detalle_ventas.cantidad) as total_vendido_semana'))
+            ->groupBy('detalle_ventas.producto_id');
+
+        $productos = Producto::query()
+            ->joinSub($ventasSemana, 'ventas_semana', function ($join) {
+                $join->on('productos.id', '=', 'ventas_semana.producto_id');
+            })
             ->join('inventario_zapatos', function($join) {
                 $join->on('productos.referencia', '=', 'inventario_zapatos.referencia')
                      ->on('productos.color', '=', 'inventario_zapatos.color');
             })
+            ->where('productos.activo', 1)
             ->where('inventario_zapatos.total', '>', 0)
-            ->select('productos.*');
+            ->select('productos.*', 'ventas_semana.total_vendido_semana')
+            ->groupBy('productos.id', 'ventas_semana.total_vendido_semana')
+            ->orderByDesc('ventas_semana.total_vendido_semana')
+            ->orderBy('productos.referencia')
+            ->take(4)
+            ->get();
 
-        $productos = $query->take(6)
-            ->get()
-            ->map(fn (Producto $producto) => ProductoCatalog::applyToProduct($producto));
+        if ($productos->count() < 4) {
+            $faltantes = 4 - $productos->count();
+            $idsActuales = $productos->pluck('id')->all();
+
+            $respaldo = Producto::query()
+                ->join('inventario_zapatos', function($join) {
+                    $join->on('productos.referencia', '=', 'inventario_zapatos.referencia')
+                         ->on('productos.color', '=', 'inventario_zapatos.color');
+                })
+                ->where('productos.activo', 1)
+                ->where('inventario_zapatos.total', '>', 0)
+                ->when(! empty($idsActuales), fn ($query) => $query->whereNotIn('productos.id', $idsActuales))
+                ->select('productos.*')
+                ->groupBy('productos.id')
+                ->orderBy('productos.referencia')
+                ->take($faltantes)
+                ->get();
+
+            $productos = $productos->concat($respaldo)->values();
+        }
+
+        $productos = $productos->map(fn (Producto $producto) => ProductoCatalog::applyToProduct($producto));
 
         return view('landing', compact('productos'));
     }
