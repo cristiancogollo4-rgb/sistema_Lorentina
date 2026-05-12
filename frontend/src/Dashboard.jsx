@@ -7,6 +7,7 @@ import GestionProduccion from './GestionProduccion';
 import DashboardResumen from './DashboardResumen';
 import Clientes from './Clientes';
 import Ventas from './Ventas';
+import Nomina from './Nomina';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -87,6 +88,13 @@ function Dashboard() {
               >
                 <span>Ventas</span>
               </li>
+
+              <li
+                className={`menu-item ${activeTab === 'nomina' ? 'active' : ''}`}
+                onClick={() => setActiveTab('nomina')}
+              >
+                <span>Nomina</span>
+              </li>
             </>
           )}
 
@@ -130,12 +138,16 @@ function Dashboard() {
         </div>
       </aside>
 
-      <main className="main-content">
-        <header className="top-header">
-          <div className="search-container">
-            <span className="search-icon-inside">Buscar</span>
-            <input type="text" placeholder="Buscar en el sistema..." className="search-input-premium" />
-          </div>
+    <main className="main-content">
+  <header className="top-header">
+    <div className="search-container">
+      <span className="search-icon-inside">🔍</span>
+      <input 
+        type="text" 
+        placeholder="Buscar en el sistema..." 
+        className="search-input-premium" 
+      />
+    </div>
 
           <div style={{ display: 'flex', alignItems: 'center' }}>
 
@@ -166,6 +178,7 @@ function Dashboard() {
             </h2>
           )}
           {activeTab === 'ventas' && <Ventas usuario={usuario} />}
+          {activeTab === 'nomina' && <Nomina />}
         </div>
       </main>
     </div>

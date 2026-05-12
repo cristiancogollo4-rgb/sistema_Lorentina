@@ -11,9 +11,12 @@ use App\Models\TarifaCategoria;
 use App\Models\User;
 use App\Models\Venta;
 use App\Support\ProductoCatalog;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
 
 class ProductionController extends Controller
 {
@@ -131,8 +134,8 @@ class ProductionController extends Controller
                 $qCreadas->where('fecha_inicio', '>=', $inicio);
                 $qTerminadas->where('fecha_fin_terminado', '>=', $inicio);
             } elseif ($rango === 'custom' && $fechaInicio && $fechaFin) {
-                $dInicio = \Carbon\Carbon::parse($fechaInicio)->startOfDay();
-                $dFin = \Carbon\Carbon::parse($fechaFin)->endOfDay();
+                $dInicio = Carbon::parse($fechaInicio)->startOfDay();
+                $dFin = Carbon::parse($fechaFin)->endOfDay();
                 $queryOrdenes->whereBetween('fecha_inicio', [$dInicio, $dFin]);
                 $qCreadas->whereBetween('fecha_inicio', [$dInicio, $dFin]);
                 $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
@@ -183,7 +186,7 @@ class ProductionController extends Controller
                 ", [$inicioSemana, $inicioMes, $inicioSemanaAnterior, $finSemanaAnterior])
                 ->first();
 
-            \Log::info("Métricas de Ventas detectadas:", [
+            Log::info("Métricas de Ventas detectadas:", [
                 'vendedor_id' => $vendedorId,
                 'semana' => $metricasVentas->ventas_semana ?? 0,
                 'mes' => $metricasVentas->ventas_mes ?? 0
@@ -211,7 +214,7 @@ class ProductionController extends Controller
                     ->limit(5)
                     ->get();
             } catch (\Exception $e) {
-                \Log::warning("Fallo en topProductos: " . $e->getMessage());
+                Log::warning("Fallo en topProductos: " . $e->getMessage());
             }
 
             // Baja rotación (Consulta simple a productos)
@@ -224,7 +227,7 @@ class ProductionController extends Controller
                     ->limit(5)
                     ->get();
             } catch (\Exception $e) {
-                \Log::warning("Fallo en bajaRotacion: " . $e->getMessage());
+                Log::warning("Fallo en bajaRotacion: " . $e->getMessage());
             }
 
             // Alerta cliente importante (Una sola consulta)
@@ -242,11 +245,11 @@ class ProductionController extends Controller
                     $alertaClienteImportante = [
                         'clienteId' => $clienteTop->cliente_id,
                         'cliente' => $clienteTop->nombre,
-                        'diasSinCompra' => $clienteTop->ultima_fecha ? now()->diffInDays(\Carbon\Carbon::parse($clienteTop->ultima_fecha)) : null,
+                        'diasSinCompra' => $clienteTop->ultima_fecha ? now()->diffInDays(Carbon::parse($clienteTop->ultima_fecha)) : null,
                     ];
                 }
             } catch (\Exception $e) {
-                \Log::warning("Fallo en alertaCliente: " . $e->getMessage());
+                Log::warning("Fallo en alertaCliente: " . $e->getMessage());
             }
 
             return response()->json([
@@ -269,7 +272,7 @@ class ProductionController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error crítico en tablero: " . $e->getMessage());
+            Log::error("Error crítico en tablero: " . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -496,6 +499,177 @@ class ProductionController extends Controller
             'totalGanado' => $totalGanado,
             'detalle' => $detalle,
         ]);
+    }
+
+    public function nominaResumen(Request $request): JsonResponse
+    {
+        $inicio = $request->query('inicio')
+            ? Carbon::parse((string) $request->query('inicio'))->startOfDay()
+            : now()->startOfWeek();
+        $fin = $request->query('fin')
+            ? Carbon::parse((string) $request->query('fin'))->endOfDay()
+            : now()->startOfWeek()->addDays(5)->endOfDay();
+
+        if ($fin->lessThan($inicio)) {
+            return response()->json(['error' => 'La fecha final no puede ser anterior a la fecha inicial.'], 422);
+        }
+
+        $empleados = User::query()
+            ->where('rol', '!=', 'ADMIN')
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'apellido', 'rol']);
+
+        $produccion = $empleados
+            ->filter(fn (User $empleado) => $this->rolProduccionConfig((string) $empleado->rol) !== null)
+            ->map(function (User $empleado) use ($inicio, $fin) {
+                $config = $this->rolProduccionConfig((string) $empleado->rol);
+                $ordenes = OrdenProduccion::query()
+                    ->where($config['empleado'], $empleado->id)
+                    ->whereBetween($config['fecha'], [$inicio, $fin])
+                    ->orderByDesc($config['fecha'])
+                    ->get();
+
+                $totalPares = 0;
+                $totalGanado = 0;
+                $detalle = $ordenes->map(function (OrdenProduccion $orden) use ($config, &$totalPares, &$totalGanado) {
+                    $pares = (int) $orden->total_pares;
+                    $precio = (int) $orden->{$config['precio']};
+                    $subtotal = $pares * $precio;
+                    $totalPares += $pares;
+                    $totalGanado += $subtotal;
+
+                    return [
+                        'id' => $orden->id,
+                        'tipo' => 'PRODUCCION',
+                        'numeroOrden' => $orden->numero_orden,
+                        'referencia' => $orden->referencia,
+                        'color' => $orden->color,
+                        'categoria' => $orden->categoria,
+                        'tarea' => $config['label'],
+                        'pares' => $pares,
+                        'valorUnitario' => $precio,
+                        'subtotal' => $subtotal,
+                        'fecha' => optional($orden->{$config['fecha']})->toISOString(),
+                    ];
+                })->values();
+
+                return [
+                    'empleadoId' => $empleado->id,
+                    'nombre' => trim($empleado->nombre . ' ' . $empleado->apellido),
+                    'rol' => $empleado->rol,
+                    'totalTareas' => $detalle->count(),
+                    'totalPares' => $totalPares,
+                    'totalGanado' => $totalGanado,
+                    'detalle' => $detalle,
+                ];
+            })
+            ->values();
+
+        $vendedores = $empleados
+            ->filter(fn (User $empleado) => strtoupper((string) $empleado->rol) === 'VENDEDOR')
+            ->map(function (User $vendedor) use ($inicio, $fin) {
+                $ventas = Venta::query()
+                    ->with(['cliente:id,nombre,tipo_cliente', 'items'])
+                    ->where('vendedor_id', $vendedor->id)
+                    ->whereBetween('fecha_venta', [$inicio, $fin])
+                    ->orderByDesc('fecha_venta')
+                    ->get();
+
+                $totalPares = 0;
+                $totalComision = 0;
+                $detalle = $ventas->map(function (Venta $venta) use (&$totalPares, &$totalComision) {
+                    $tipoCliente = strtoupper((string) ($venta->cliente?->tipo_cliente ?? 'DETAL'));
+                    $esMayorista = in_array($tipoCliente, ['MAYORISTA', 'MAYOR'], true);
+                    $valorUnitario = $esMayorista ? 2500 : 5000;
+                    $pares = (int) $venta->items->sum('cantidad');
+                    $subtotal = $pares * $valorUnitario;
+                    $totalPares += $pares;
+                    $totalComision += $subtotal;
+
+                    return [
+                        'id' => $venta->id,
+                        'tipo' => 'VENTA',
+                        'cliente' => $venta->cliente?->nombre,
+                        'tipoCliente' => $esMayorista ? 'MAYORISTA' : 'DETAL',
+                        'pares' => $pares,
+                        'valorUnitario' => $valorUnitario,
+                        'subtotal' => $subtotal,
+                        'totalVenta' => (float) $venta->total,
+                        'fecha' => optional($venta->fecha_venta)->toISOString(),
+                    ];
+                })->values();
+
+                return [
+                    'empleadoId' => $vendedor->id,
+                    'nombre' => trim($vendedor->nombre . ' ' . $vendedor->apellido),
+                    'rol' => $vendedor->rol,
+                    'totalVentas' => $detalle->count(),
+                    'totalPares' => $totalPares,
+                    'totalGanado' => $totalComision,
+                    'detalle' => $detalle,
+                ];
+            })
+            ->values();
+
+        $empleadosNomina = $produccion->concat($vendedores)->values();
+
+        return response()->json([
+            'periodo' => [
+                'inicio' => $inicio->toDateString(),
+                'fin' => $fin->toDateString(),
+                'diaPago' => 'SABADO',
+            ],
+            'reglas' => [
+                'comisionDetal' => 5000,
+                'comisionMayorista' => 2500,
+            ],
+            'totales' => [
+                'empleados' => $empleadosNomina->count(),
+                'pares' => (int) $empleadosNomina->sum('totalPares'),
+                'pagar' => (int) $empleadosNomina->sum('totalGanado'),
+                'produccion' => (int) $produccion->sum('totalGanado'),
+                'ventas' => (int) $vendedores->sum('totalGanado'),
+            ],
+            'empleados' => $empleadosNomina,
+        ]);
+    }
+
+    private function rolProduccionConfig(string $rol): ?array
+    {
+        return match (strtoupper($rol)) {
+            'CORTE' => [
+                'label' => 'Corte',
+                'empleado' => 'cortador_id',
+                'fecha' => 'fecha_fin_corte',
+                'precio' => 'precio_corte',
+            ],
+            'ARMADOR', 'ARMADO' => [
+                'label' => 'Armado',
+                'empleado' => 'armador_id',
+                'fecha' => 'fecha_fin_armado',
+                'precio' => 'precio_armado',
+            ],
+            'COSTURERO', 'COSTURA' => [
+                'label' => 'Costura',
+                'empleado' => 'costurero_id',
+                'fecha' => 'fecha_fin_costura',
+                'precio' => 'precio_costura',
+            ],
+            'SOLADOR', 'SOLADURA' => [
+                'label' => 'Soladura',
+                'empleado' => 'solador_id',
+                'fecha' => 'fecha_fin_soladura',
+                'precio' => 'precio_soladura',
+            ],
+            'EMPLANTILLADOR', 'EMPLANTILLADO' => [
+                'label' => 'Emplantillado',
+                'empleado' => 'emplantillador_id',
+                'fecha' => 'fecha_fin_emplantillado',
+                'precio' => 'precio_emplantillado',
+            ],
+            default => null,
+        };
     }
 
     private function resolverPrecios(bool $isEspecial, string $categoria, array $data): array

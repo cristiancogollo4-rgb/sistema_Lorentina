@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class VentaController extends Controller
@@ -22,7 +23,7 @@ class VentaController extends Controller
     public function index(Request $request): JsonResponse
     {
         $vendedorId = $request->query('vendedor_id');
-        \Log::info("VentaController@index - vendedor_id recibido: " . ($vendedorId ?? 'NULL'));
+        Log::info("VentaController@index - vendedor_id recibido: " . ($vendedorId ?? 'NULL'));
 
         $query = Venta::query();
         if ($vendedorId) {
@@ -35,7 +36,7 @@ class VentaController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        \Log::info("VentaController@index - Ventas encontradas: " . $ventas->count());
+        Log::info("VentaController@index - Ventas encontradas: " . $ventas->count());
 
         $result = $ventas->map(function (Venta $venta) {
                 return [

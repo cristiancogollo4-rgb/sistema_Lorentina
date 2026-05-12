@@ -23,6 +23,7 @@ Route::get('/tarifas', [TarifaController::class, 'index']);
 Route::post('/tarifas/actualizar', [TarifaController::class, 'actualizar']);
 Route::post('/produccion', [ProductionController::class, 'store']);
 Route::get('/mis-tareas/{empleadoId}', [ProductionController::class, 'misTareas']);
+Route::get('/nomina/resumen', [ProductionController::class, 'nominaResumen']);
 Route::get('/nomina/{empleadoId}', [ProductionController::class, 'nomina']);
 Route::get('/produccion/tablero', [ProductionController::class, 'tablero']);
 Route::post('/produccion/asignar', [ProductionController::class, 'asignar']);
