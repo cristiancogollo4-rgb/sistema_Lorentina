@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Producto extends Model
 {
@@ -10,12 +11,16 @@ class Producto extends Model
 
     protected $table = 'productos';
 
+    /** @var array<string, array<int, string>>|null */
+    private static ?array $catalogImageIndex = null;
+
     protected $fillable = [
         'nombre_modelo',
         'descripcion',
         'referencia',
         'color',
         'tipo',
+        'tarifa_categoria_id',
         'precio_detal',
         'precio_mayor',
         'costo_produccion',
@@ -31,6 +36,7 @@ class Producto extends Model
             'referencia' => 'string',
             'color' => 'string',
             'tipo' => 'string',
+            'tarifa_categoria_id' => 'integer',
             'precio_detal' => 'float',
             'precio_mayor' => 'float',
             'costo_produccion' => 'float',
@@ -44,6 +50,11 @@ class Producto extends Model
     public function stocks()
     {
         return $this->hasMany(Stock::class, 'producto_id');
+    }
+
+    public function tarifaCategoria()
+    {
+        return $this->belongsTo(TarifaCategoria::class, 'tarifa_categoria_id');
     }
 
     public function getTallasDisponiblesAttribute()
@@ -113,7 +124,7 @@ class Producto extends Model
 
     public function getImagenSrcAttribute(): string
     {
-        return $this->todas_las_imagenes_src[0] ?? asset('images/default-shoe.jpg');
+        return $this->todas_las_imagenes_src[0] ?? asset('images/LOGOLORENTINA.png');
     }
 
     public function getTodasLasImagenesSrcAttribute(): array
@@ -125,6 +136,10 @@ class Producto extends Model
             $imagenes = [$this->imagen];
         }
 
+        if (empty($imagenes)) {
+            $imagenes = $this->buscarImagenesLocalesCatalogo();
+        }
+
         foreach ($imagenes as $img) {
             if (str_contains($img, 'drive.google.com')) {
                 if (preg_match('/(?:id=|\/d\/)([a-zA-Z0-9_-]+)/', $img, $matches)) {
@@ -133,17 +148,136 @@ class Producto extends Model
                 }
             } else {
                 $img = $this->preferWebpForHeic($img);
-                $urls[] = str_starts_with($img, 'http')
-                    ? $img
-                    : asset('images/' . $img);
+                if (str_starts_with($img, 'http')) {
+                    $urls[] = $img;
+                } elseif (file_exists(public_path('images/' . $img))) {
+                    $urls[] = asset('images/' . $img);
+                }
             }
         }
 
         if (empty($urls)) {
-            $urls[] = asset('images/default-shoe.jpg');
+            $urls[] = asset('images/LOGOLORENTINA.png');
         }
 
         return $urls;
+    }
+
+    private function buscarImagenesLocalesCatalogo(): array
+    {
+        $referencia = trim((string) $this->referencia);
+        $color = trim((string) $this->color);
+
+        if ($referencia === '') {
+            return [];
+        }
+
+        $imagenes = self::catalogImageIndex()[$referencia] ?? [];
+        if ($imagenes === []) {
+            return [];
+        }
+
+        $colorTokens = $this->tokensImagen($color);
+        $candidatos = [];
+
+        foreach ($imagenes as $imagen) {
+            $archivoTokens = $this->tokensImagen(pathinfo($imagen, PATHINFO_FILENAME));
+            $coincidencias = count(array_intersect($colorTokens, $archivoTokens));
+
+            if ($colorTokens !== [] && $coincidencias === 0) {
+                continue;
+            }
+
+            $candidatos[] = [
+                'imagen' => $imagen,
+                'score' => ($coincidencias * 10) + (str_contains($this->normalizarTexto(pathinfo($imagen, PATHINFO_FILENAME)), $this->normalizarTexto($color)) ? 100 : 0),
+            ];
+        }
+
+        usort($candidatos, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        $resueltos = array_values(array_unique(array_map(
+            fn (array $candidato): string => $candidato['imagen'],
+            $candidatos
+        )));
+
+        return $resueltos !== [] ? $resueltos : array_slice($imagenes, 0, 6);
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private static function catalogImageIndex(): array
+    {
+        if (self::$catalogImageIndex !== null) {
+            return self::$catalogImageIndex;
+        }
+
+        $basePath = public_path('images/catalog');
+        self::$catalogImageIndex = [];
+
+        if (! is_dir($basePath)) {
+            return self::$catalogImageIndex;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($basePath));
+        foreach ($iterator as $file) {
+            if (! $file->isFile()) {
+                continue;
+            }
+
+            $extension = strtolower($file->getExtension());
+            if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'heic'], true)) {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', ltrim(substr($file->getPathname(), strlen(public_path('images'))), '\\/'));
+            $referencia = basename(dirname($file->getPathname()));
+            self::$catalogImageIndex[$referencia][] = $relative;
+
+            if (preg_match('/^#?(Z?[0-9]+[A-Z]?)/i', $referencia, $folderMatches)) {
+                $folderRef = strtoupper($folderMatches[1]);
+                self::$catalogImageIndex[$folderRef][] = $relative;
+                self::$catalogImageIndex[ltrim($folderRef, 'Z')][] = $relative;
+                self::$catalogImageIndex['#' . ltrim($folderRef, 'Z')][] = $relative;
+            }
+
+            if (preg_match('/^#?(Z?[0-9]+[A-Z]?)/i', $file->getFilename(), $matches)) {
+                $fileRef = strtoupper($matches[1]);
+                self::$catalogImageIndex[$fileRef][] = $relative;
+                self::$catalogImageIndex[ltrim($fileRef, 'Z')][] = $relative;
+                self::$catalogImageIndex['#' . ltrim($fileRef, 'Z')][] = $relative;
+            }
+        }
+
+        return self::$catalogImageIndex;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tokensImagen(string $value): array
+    {
+        $normalizado = $this->normalizarTexto($value);
+        $tokens = preg_split('/[^A-Z0-9]+/', $normalizado) ?: [];
+
+        $tokens = array_values(array_filter(
+            array_unique($tokens),
+            fn (string $token): bool => strlen($token) > 1 && ! in_array($token, ['PIE', 'TALON', 'CAPELLADA'], true) && $token !== (string) $this->referencia
+        ));
+
+        foreach ($tokens as $token) {
+            if (strlen($token) > 3 && str_ends_with($token, 'S')) {
+                $tokens[] = rtrim($token, 'S');
+            }
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    private function normalizarTexto(string $value): string
+    {
+        return strtoupper(Str::ascii($value));
     }
 
     private function preferWebpForHeic(string $path): string

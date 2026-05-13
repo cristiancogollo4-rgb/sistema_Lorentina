@@ -1355,6 +1355,13 @@
         // Initialize HEIC images on load
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('img').forEach(img => {
+                img.addEventListener('error', () => {
+                    const fallback = "{{ asset('images/LOGOLORENTINA.png') }}";
+                    if (img.src !== fallback) {
+                        img.src = fallback;
+                    }
+                }, { once: true });
+
                 if (img.src.toLowerCase().endsWith('.heic')) {
                     setImgSrc(img, img.src);
                 }

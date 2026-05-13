@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import api from './api';
 
 function Produccion({ usuario }) {
-  const [referencia, setReferencia] = useState('');
-  const [color, setColor] = useState('');
+  const [productoId, setProductoId] = useState('');
+  const [productosProduccion, setProductosProduccion] = useState([]);
   const [categoria, setCategoria] = useState('');
   const [destino, setDestino] = useState('STOCK');
   const [clienteId, setClienteId] = useState('');
@@ -26,6 +26,26 @@ function Produccion({ usuario }) {
   const [mayoristas, setMayoristas] = useState([]);
   const [showTarifasModal, setShowTarifasModal] = useState(false);
   const [showMayoristaModal, setShowMayoristaModal] = useState(false);
+  const [showProductoModal, setShowProductoModal] = useState(false);
+  const [showCategoriaModal, setShowCategoriaModal] = useState(false);
+  const [nuevoProducto, setNuevoProducto] = useState({
+    referencia: '',
+    color: '',
+    tipo: 'PLANA',
+    tarifaCategoriaId: '',
+    nombreModelo: '',
+    precioDetal: '',
+    precioMayor: '',
+    costoProduccion: '',
+  });
+  const [nuevaCategoria, setNuevaCategoria] = useState({
+    nombre: '',
+    precioCorte: '',
+    precioArmado: '',
+    precioCostura: '',
+    precioSoladura: '',
+    precioEmplantillado: '',
+  });
   const [nuevoMayorista, setNuevoMayorista] = useState({
     nombre: '',
     telefono: '',
@@ -38,11 +58,32 @@ function Produccion({ usuario }) {
     tipo_cliente: 'MAYORISTA',
   });
 
+  const productoSeleccionado = productosProduccion.find(p => String(p.id) === String(productoId));
+
   useEffect(() => {
     api.get('/usuarios').then(res => setEmpleados(res.data)).catch(err => console.error(err));
-    api.get('/tarifas').then(res => setTarifas(res.data)).catch(err => console.error(err));
+    cargarTarifas();
+    cargarProductosProduccion();
     cargarMayoristas();
   }, []);
+
+  const cargarTarifas = async () => {
+    try {
+      const res = await api.get('/tarifas');
+      setTarifas(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const cargarProductosProduccion = async () => {
+    try {
+      const res = await api.get('/produccion/catalogo');
+      setProductosProduccion(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const cargarMayoristas = async () => {
     try {
@@ -71,14 +112,25 @@ function Produccion({ usuario }) {
     setTallas({ ...tallas, [talla]: parseInt(valor) || 0 });
   };
 
+  const seleccionarProducto = (id) => {
+    setProductoId(id);
+    const producto = productosProduccion.find(p => String(p.id) === String(id));
+
+    if (producto?.tarifaCategoriaNombre) {
+      setCategoria(producto.tarifaCategoriaNombre);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const totalPares = Object.values(tallas).reduce((a, b) => a + b, 0);
+    if (!productoSeleccionado) return alert("Selecciona o crea un producto para fabricar.");
     if (totalPares === 0) return alert("Debes ingresar al menos un par.");
     if (destino === 'CLIENTE' && !clienteId) return alert("Selecciona un cliente mayorista para esta orden.");
 
     const payload = {
-      referencia, color, categoria, destino, materiales, 
+      productoId: Number(productoId),
+      categoria, destino, materiales, 
       clienteId: destino === 'CLIENTE' ? Number(clienteId) : null,
       vendedorId: destino === 'CLIENTE' && vendedorId ? Number(vendedorId) : null,
       precioVentaUnitario: destino === 'CLIENTE' && precioVentaUnitario !== '' ? Number(precioVentaUnitario) : null,
@@ -96,7 +148,7 @@ function Produccion({ usuario }) {
       await api.post('/produccion', payload);
       alert("✅ Orden de fabricación creada con éxito.");
       // Reset
-      setReferencia(''); setColor(''); setTallas({ t35: 0, t36: 0, t37: 0, t38: 0, t39: 0, t40: 0, t41: 0, t42: 0 });
+      setProductoId(''); setTallas({ t35: 0, t36: 0, t37: 0, t38: 0, t39: 0, t40: 0, t41: 0, t42: 0 });
       setDestino('STOCK'); setClienteId(''); setVendedorId(''); setPrecioVentaUnitario('');
       setEsPedidoEspecial(false);
       setPrecioManualCorte(''); setPrecioManualArmado(''); setPrecioManualCostura(''); setPrecioManualSoladura(''); setPrecioManualEmplantillado('');
@@ -135,6 +187,73 @@ function Produccion({ usuario }) {
     }
   };
 
+  const guardarProducto = async () => {
+    if (!nuevoProducto.referencia.trim()) return alert('La referencia es obligatoria.');
+    if (!nuevoProducto.color.trim()) return alert('El color es obligatorio.');
+    if (!nuevoProducto.tipo) return alert('Selecciona el tipo del producto.');
+    if (!nuevoProducto.tarifaCategoriaId) return alert('Selecciona la categoria de tarifa del producto.');
+
+    try {
+      const res = await api.post('/produccion/productos', {
+        referencia: nuevoProducto.referencia.trim(),
+        color: nuevoProducto.color.trim(),
+        tipo: nuevoProducto.tipo,
+        tarifaCategoriaId: Number(nuevoProducto.tarifaCategoriaId),
+        nombreModelo: nuevoProducto.nombreModelo.trim() || null,
+        precioDetal: nuevoProducto.precioDetal !== '' ? Number(nuevoProducto.precioDetal) : null,
+        precioMayor: nuevoProducto.precioMayor !== '' ? Number(nuevoProducto.precioMayor) : null,
+        costoProduccion: nuevoProducto.costoProduccion !== '' ? Number(nuevoProducto.costoProduccion) : null,
+      });
+
+      await cargarProductosProduccion();
+      setProductoId(String(res.data.id));
+      if (res.data.tarifaCategoriaNombre) setCategoria(res.data.tarifaCategoriaNombre);
+      setShowProductoModal(false);
+      setNuevoProducto({
+        referencia: '',
+        color: '',
+        tipo: 'PLANA',
+        tarifaCategoriaId: '',
+        nombreModelo: '',
+        precioDetal: '',
+        precioMayor: '',
+        costoProduccion: '',
+      });
+    } catch (error) {
+      alert("Error al crear producto: " + (error.response?.data?.message || error.response?.data?.error || "Error de conexiÃ³n"));
+    }
+  };
+
+  const guardarCategoria = async () => {
+    if (!nuevaCategoria.nombre.trim()) return alert('El nombre de la categoria es obligatorio.');
+
+    try {
+      const res = await api.post('/tarifas', {
+        nombre: nuevaCategoria.nombre.trim(),
+        precioCorte: nuevaCategoria.precioCorte !== '' ? Number(nuevaCategoria.precioCorte) : null,
+        precioArmado: nuevaCategoria.precioArmado !== '' ? Number(nuevaCategoria.precioArmado) : null,
+        precioCostura: nuevaCategoria.precioCostura !== '' ? Number(nuevaCategoria.precioCostura) : null,
+        precioSoladura: nuevaCategoria.precioSoladura !== '' ? Number(nuevaCategoria.precioSoladura) : null,
+        precioEmplantillado: nuevaCategoria.precioEmplantillado !== '' ? Number(nuevaCategoria.precioEmplantillado) : null,
+      });
+
+      await cargarTarifas();
+      setCategoria(res.data.nombre);
+      setNuevoProducto(prev => ({ ...prev, tarifaCategoriaId: String(res.data.id) }));
+      setShowCategoriaModal(false);
+      setNuevaCategoria({
+        nombre: '',
+        precioCorte: '',
+        precioArmado: '',
+        precioCostura: '',
+        precioSoladura: '',
+        precioEmplantillado: '',
+      });
+    } catch (error) {
+      alert("Error al crear categoria: " + (error.response?.data?.message || error.response?.data?.error || "Error de conexiÃ³n"));
+    }
+  };
+
   return (
     <div className="fab-container fade-in">
       
@@ -161,40 +280,65 @@ function Produccion({ usuario }) {
             </div>
             
             <div className="lorentina-input-group">
-              <label>REFERENCIA (MODELO)</label>
-              <input 
-                className="lorentina-input"
-                placeholder="Ej: 1028"
-                value={referencia}
-                onChange={e => setReferencia(e.target.value)}
-                required
-              />
+              <label>PRODUCTO / REFERENCIA</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  className="lorentina-input"
+                  value={productoId}
+                  onChange={e => seleccionarProducto(e.target.value)}
+                  required
+                  style={{ flex: 1 }}
+                >
+                  <option value="">-- Seleccionar producto --</option>
+                  {productosProduccion.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.referencia} - {p.color} {p.tarifaCategoriaNombre ? `(${p.tarifaCategoriaNombre})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowProductoModal(true)}
+                  style={{ border: 'none', borderRadius: '10px', background: '#582e2e', color: 'white', padding: '0 14px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  + Nuevo
+                </button>
+              </div>
             </div>
 
-            <div className="lorentina-input-group">
-              <label>COLOR / ACABADO</label>
-              <input 
-                className="lorentina-input"
-                placeholder="Ej: Negro Charol"
-                value={color}
-                onChange={e => setColor(e.target.value)}
-                required
-              />
-            </div>
+            {productoSeleccionado && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', marginBottom: '15px' }}>
+                <p style={{ margin: 0, fontWeight: '800', color: '#582e2e' }}>{productoSeleccionado.nombreModelo}</p>
+                <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                  Ref. {productoSeleccionado.referencia} / Color {productoSeleccionado.color} / {productoSeleccionado.tipo} / Categoria {productoSeleccionado.tarifaCategoriaNombre || 'Sin categoria'}
+                </p>
+              </div>
+            )}
 
             <div className="lorentina-input-group">
               <label>CATEGORÍA DE TARIFA (Sandalia/Tenis)</label>
-              <select 
-                className="lorentina-input"
-                value={categoria}
-                onChange={e => setCategoria(e.target.value)}
-                required
-              >
-                <option value="">-- Seleccionar --</option>
-                {tarifas.map(t => (
-                  <option key={t.id} value={t.nombre}>{t.nombre}</option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  className="lorentina-input"
+                  value={categoria}
+                  onChange={e => setCategoria(e.target.value)}
+                  required
+                  disabled={!!productoSeleccionado}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {tarifas.map(t => (
+                    <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowCategoriaModal(true)}
+                  style={{ border: 'none', borderRadius: '10px', background: '#e2e8f0', color: '#475569', padding: '0 14px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  + Nueva
+                </button>
+              </div>
             </div>
 
             <div className="lorentina-input-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7' }}>
@@ -465,6 +609,66 @@ function Produccion({ usuario }) {
                   💾 Guardar Todos los Cambios
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCategoriaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: '26px', width: '95%', maxWidth: '620px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, color: '#582e2e' }}>Nueva categoria de tarifa</h3>
+              <button type="button" onClick={() => setShowCategoriaModal(false)} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>X</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <input className="lorentina-input" placeholder="Nombre de la categoria *" value={nuevaCategoria.nombre} onChange={e => setNuevaCategoria({ ...nuevaCategoria, nombre: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio corte" value={nuevaCategoria.precioCorte} onChange={e => setNuevaCategoria({ ...nuevaCategoria, precioCorte: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio armado" value={nuevaCategoria.precioArmado} onChange={e => setNuevaCategoria({ ...nuevaCategoria, precioArmado: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio costura" value={nuevaCategoria.precioCostura} onChange={e => setNuevaCategoria({ ...nuevaCategoria, precioCostura: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio soladura" value={nuevaCategoria.precioSoladura} onChange={e => setNuevaCategoria({ ...nuevaCategoria, precioSoladura: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio emplantillado" value={nuevaCategoria.precioEmplantillado} onChange={e => setNuevaCategoria({ ...nuevaCategoria, precioEmplantillado: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button type="button" onClick={() => setShowCategoriaModal(false)} style={{ padding: '11px 18px', border: 'none', borderRadius: '10px', background: '#e2e8f0', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button type="button" onClick={guardarCategoria} style={{ padding: '11px 22px', border: 'none', borderRadius: '10px', background: '#582e2e', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Guardar categoria</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProductoModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: '26px', width: '95%', maxWidth: '620px', boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, color: '#582e2e' }}>Nuevo producto para fabricar</h3>
+              <button type="button" onClick={() => setShowProductoModal(false)} style={{ border: 'none', background: '#f1f5f9', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>X</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <input className="lorentina-input" placeholder="Referencia *" value={nuevoProducto.referencia} onChange={e => setNuevoProducto({ ...nuevoProducto, referencia: e.target.value })} />
+              <input className="lorentina-input" placeholder="Color *" value={nuevoProducto.color} onChange={e => setNuevoProducto({ ...nuevoProducto, color: e.target.value })} />
+              <select className="lorentina-input" title="Tipo del producto" value={nuevoProducto.tipo} onChange={e => setNuevoProducto({ ...nuevoProducto, tipo: e.target.value })}>
+                <option value="PLANA">PLANA</option>
+                <option value="PLATAFORMA">PLATAFORMA</option>
+              </select>
+              <select className="lorentina-input" value={nuevoProducto.tarifaCategoriaId} onChange={e => setNuevoProducto({ ...nuevoProducto, tarifaCategoriaId: e.target.value })}>
+                <option value="">Categoria de tarifa *</option>
+                {tarifas.map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
+              <input className="lorentina-input" placeholder="Nombre del modelo" value={nuevoProducto.nombreModelo} onChange={e => setNuevoProducto({ ...nuevoProducto, nombreModelo: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio detal" value={nuevoProducto.precioDetal} onChange={e => setNuevoProducto({ ...nuevoProducto, precioDetal: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Precio mayorista" value={nuevoProducto.precioMayor} onChange={e => setNuevoProducto({ ...nuevoProducto, precioMayor: e.target.value })} />
+              <input className="lorentina-input" type="number" min="0" placeholder="Costo produccion" value={nuevoProducto.costoProduccion} onChange={e => setNuevoProducto({ ...nuevoProducto, costoProduccion: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button type="button" onClick={() => setShowProductoModal(false)} style={{ padding: '11px 18px', border: 'none', borderRadius: '10px', background: '#e2e8f0', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
+              <button type="button" onClick={guardarProducto} style={{ padding: '11px 22px', border: 'none', borderRadius: '10px', background: '#582e2e', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Guardar producto</button>
             </div>
           </div>
         </div>

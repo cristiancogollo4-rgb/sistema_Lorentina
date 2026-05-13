@@ -13,6 +13,7 @@ use App\Models\TarifaCategoria;
 use App\Models\User;
 use App\Models\Venta;
 use App\Support\ProductoCatalog;
+use App\Support\ProductoPrecio;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,12 +35,67 @@ class ProductionController extends Controller
         );
     }
 
+    public function catalogoProduccion(): JsonResponse
+    {
+        $productos = Producto::query()
+                ->with('tarifaCategoria:id,nombre')
+                ->where('activo', true)
+                ->whereNotNull('referencia')
+                ->whereNotNull('color')
+            ->orderBy('referencia')
+            ->orderBy('color')
+            ->orderBy('tipo')
+            ->get()
+            ->map(fn (Producto $producto): array => $this->formatProductoProduccion($producto))
+            ->values();
+
+        return response()->json($productos);
+    }
+
+    public function crearProductoProduccion(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'referencia' => ['required', 'string', 'max:255'],
+            'color' => ['required', 'string', 'max:255'],
+            'tipo' => ['required', 'string', 'in:PLANA,PLATAFORMA'],
+            'tarifaCategoriaId' => ['required', 'integer', 'exists:tarifa_categorias,id'],
+            'nombreModelo' => ['nullable', 'string', 'max:255'],
+            'precioDetal' => ['nullable', 'numeric', 'min:0'],
+            'precioMayor' => ['nullable', 'numeric', 'min:0'],
+            'costoProduccion' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $referencia = trim((string) $data['referencia']);
+        $color = trim((string) $data['color']);
+        $tipo = strtoupper(trim((string) $data['tipo']));
+        $nombreModelo = trim((string) ($data['nombreModelo'] ?? ''));
+
+        $producto = Producto::query()->firstOrNew([
+                'referencia' => $referencia,
+                'color' => $color,
+                'tipo' => $tipo,
+        ]);
+
+        $producto->nombre_modelo = $nombreModelo !== '' ? $nombreModelo : ($producto->nombre_modelo ?: trim("{$referencia} {$color}"));
+        $producto->descripcion = $producto->descripcion ?: 'Producto creado desde el modulo de fabricacion';
+        $producto->tarifa_categoria_id = (int) $data['tarifaCategoriaId'];
+        $categoriaNombre = TarifaCategoria::query()->where('id', (int) $data['tarifaCategoriaId'])->value('nombre');
+        $preciosBase = ProductoPrecio::para($tipo, $categoriaNombre);
+        $producto->precio_detal = array_key_exists('precioDetal', $data) && $data['precioDetal'] !== null ? (float) $data['precioDetal'] : $preciosBase['detal'];
+        $producto->precio_mayor = array_key_exists('precioMayor', $data) && $data['precioMayor'] !== null ? (float) $data['precioMayor'] : $preciosBase['mayor'];
+        $producto->costo_produccion = array_key_exists('costoProduccion', $data) && $data['costoProduccion'] !== null ? (float) $data['costoProduccion'] : (float) ($producto->costo_produccion ?? 0);
+        $producto->activo = true;
+        $producto->imagen = $producto->imagen ?: ProductoCatalog::imageUrlFor($referencia, $color, $tipo);
+        $producto->save();
+
+        return response()->json($this->formatProductoProduccion($producto), $producto->wasRecentlyCreated ? 201 : 200);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'referencia' => ['required', 'string'],
-            'color' => ['required', 'string'],
-            'categoria' => ['required', 'string'],
+            'productoId' => ['required', 'integer', 'exists:productos,id'],
+            'categoria' => ['nullable', 'string'],
             'isEspecial' => ['nullable', 'boolean'],
             'materiales' => ['required', 'string'],
             'observacion' => ['nullable', 'string'],
@@ -67,9 +123,18 @@ class ProductionController extends Controller
         ]);
 
         $isEspecial = filter_var($data['isEspecial'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $categoria = $data['categoria'] ?? 'ROMANA';
-        $precios = $this->resolverPrecios($isEspecial, $categoria, $data);
         $clienteId = null;
+        $productoSeleccionado = Producto::query()->with('tarifaCategoria')->findOrFail((int) $data['productoId']);
+        $productoSeleccionado = ProductoCatalog::applyToProduct($productoSeleccionado);
+
+        if (! $productoSeleccionado->activo || empty($productoSeleccionado->referencia) || empty($productoSeleccionado->color) || ! $productoSeleccionado->tarifaCategoria) {
+            return response()->json([
+                'error' => 'Selecciona un producto activo con referencia, color y categoria para fabricar.',
+            ], 422);
+        }
+
+        $categoria = (string) $productoSeleccionado->tarifaCategoria->nombre;
+        $precios = $this->resolverPrecios($isEspecial, $categoria, $data);
 
         if ($data['destino'] === 'CLIENTE') {
             if (empty($data['clienteId'])) {
@@ -97,11 +162,11 @@ class ProductionController extends Controller
         }
 
         $venta = null;
-        $orden = DB::transaction(function () use ($data, $categoria, $precios, $tallas, $totalPares, $clienteId, &$venta) {
+        $orden = DB::transaction(function () use ($data, $categoria, $precios, $tallas, $totalPares, $clienteId, $productoSeleccionado, &$venta) {
             $orden = OrdenProduccion::create([
                 'numero_orden' => 'OP-' . substr((string) round(microtime(true) * 1000), -6),
-                'referencia' => $data['referencia'],
-                'color' => $data['color'],
+                'referencia' => $productoSeleccionado->referencia,
+                'color' => $productoSeleccionado->color,
                 'categoria' => $categoria,
                 'precio_corte' => $precios['corte'],
                 'precio_armado' => $precios['armado'],
@@ -122,7 +187,8 @@ class ProductionController extends Controller
                 $venta = $this->registrarVentaDesdeOrdenMayorista(
                     $orden,
                     $data['vendedorId'] ?? null,
-                    isset($data['precioVentaUnitario']) ? (float) $data['precioVentaUnitario'] : null
+                    isset($data['precioVentaUnitario']) ? (float) $data['precioVentaUnitario'] : null,
+                    $productoSeleccionado
                 );
             }
 
@@ -179,7 +245,18 @@ class ProductionController extends Controller
                 $qTerminadas->whereBetween('fecha_fin_terminado', [$dInicio, $dFin]);
             }
 
-            $ordenes = $queryOrdenes->orderByDesc('id')
+            $ordenes = $queryOrdenes
+                ->orderByRaw("
+                    CASE
+                        WHEN estado = 'EN_CORTE' AND cortador_id IS NULL THEN 0
+                        WHEN estado = 'EN_ARMADO' AND armador_id IS NULL THEN 0
+                        WHEN estado = 'EN_COSTURA' AND costurero_id IS NULL THEN 0
+                        WHEN estado = 'EN_SOLADURA' AND solador_id IS NULL THEN 0
+                        WHEN estado = 'EN_EMPLANTILLADO' AND emplantillador_id IS NULL THEN 0
+                        ELSE 1
+                    END
+                ")
+                ->orderByDesc('id')
                 ->get()
                 ->map(fn (OrdenProduccion $orden) => $this->formatOrden($orden));
 
@@ -191,6 +268,7 @@ class ProductionController extends Controller
 
             $paresFabricar = (int) $qCreadas->sum('total_pares');
             $paresStock = (int) $qTerminadas->sum('total_pares');
+            $pendientesAsignacion = $ordenes->filter(fn (array $orden) => (bool) $orden['pendienteAsignacion'])->count();
             $inicioSemana = now()->startOfWeek();
             $inicioMes = now()->startOfMonth();
             
@@ -297,6 +375,7 @@ class ProductionController extends Controller
                 'stats' => [
                     'paresFabricar' => $paresFabricar,
                     'paresStock' => $paresStock,
+                    'pendientesAsignacion' => $pendientesAsignacion,
                     'ventasSemana' => $ventasSemana,
                     'ventasMes' => $ventasMes,
                     'ventasSemanaVendedor' => $ventasSemanaVendedor,
@@ -371,16 +450,16 @@ class ProductionController extends Controller
         $ahora = now();
 
         if ($rol === 'CORTE') {
-            $orden->update(['estado' => 'EN_ARMADO', 'fecha_fin_corte' => $ahora]);
+            $orden->update(['estado' => 'EN_ARMADO', 'fecha_fin_corte' => $ahora, 'armador_id' => null]);
             $nuevoEstado = 'EN_ARMADO';
         } elseif (in_array($rol, ['ARMADOR', 'ARMADO'], true)) {
-            $orden->update(['estado' => 'EN_COSTURA', 'fecha_fin_armado' => $ahora]);
+            $orden->update(['estado' => 'EN_COSTURA', 'fecha_fin_armado' => $ahora, 'costurero_id' => null]);
             $nuevoEstado = 'EN_COSTURA';
         } elseif (in_array($rol, ['COSTURERO', 'COSTURA'], true)) {
-            $orden->update(['estado' => 'EN_SOLADURA', 'fecha_fin_costura' => $ahora]);
+            $orden->update(['estado' => 'EN_SOLADURA', 'fecha_fin_costura' => $ahora, 'solador_id' => null]);
             $nuevoEstado = 'EN_SOLADURA';
         } elseif (in_array($rol, ['SOLADOR', 'SOLADURA'], true)) {
-            $orden->update(['estado' => 'EN_EMPLANTILLADO', 'fecha_fin_soladura' => $ahora]);
+            $orden->update(['estado' => 'EN_EMPLANTILLADO', 'fecha_fin_soladura' => $ahora, 'emplantillador_id' => null]);
             $nuevoEstado = 'EN_EMPLANTILLADO';
         } elseif ($rol === 'EMPLANTILLADOR') {
             $estadoFinal = $this->debeEsperarIngresoStock($orden) ? 'LISTO_PARA_STOCK' : 'TERMINADO';
@@ -428,28 +507,8 @@ class ProductionController extends Controller
         }
 
         DB::transaction(function () use ($orden): void {
-            $tipo = $this->inferirTipoProducto((string) $orden->referencia);
-
-            Producto::query()->updateOrCreate(
-                [
-                    'referencia' => $orden->referencia,
-                    'color' => $orden->color,
-                    'tipo' => $tipo,
-                ],
-                [
-                    'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
-                    'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
-                    'precio_detal' => 0,
-                    'precio_mayor' => 0,
-                    'costo_produccion' => 0,
-                    'activo' => true,
-                    'imagen' => ProductoCatalog::imageUrlFor(
-                        (string) $orden->referencia,
-                        (string) $orden->color,
-                        $tipo
-                    ),
-                ]
-            );
+            $producto = $this->productoParaOrden($orden);
+            $tipo = (string) $producto->tipo;
 
             $this->sumarOrdenAInventario($orden, 'FABRICA', $tipo);
             $this->sumarOrdenAInventario($orden, 'TOTAL', $tipo);
@@ -818,9 +877,9 @@ class ProductionController extends Controller
         return strtoupper((string) $orden->destino) === 'STOCK' && $orden->cliente_id === null;
     }
 
-    private function registrarVentaDesdeOrdenMayorista(OrdenProduccion $orden, ?int $vendedorId, ?float $precioVentaUnitario = null): Venta
+    private function registrarVentaDesdeOrdenMayorista(OrdenProduccion $orden, ?int $vendedorId, ?float $precioVentaUnitario = null, ?Producto $productoBase = null): Venta
     {
-        $producto = $this->productoParaOrden($orden);
+        $producto = $productoBase ?? $this->productoParaOrden($orden);
         $precioUnitario = $precioVentaUnitario ?? (float) ($producto->precio_mayor ?: $producto->precio_detal ?: 0);
         $adminId = User::query()
             ->where('rol', 'ADMIN')
@@ -869,28 +928,18 @@ class ProductionController extends Controller
 
     private function productoParaOrden(OrdenProduccion $orden): Producto
     {
-        $tipo = $this->inferirTipoProducto((string) $orden->referencia);
+        $producto = Producto::query()
+            ->where('referencia', (string) $orden->referencia)
+            ->where('color', (string) $orden->color)
+            ->where('activo', true)
+            ->orderBy('id')
+            ->first();
 
-        return Producto::query()->firstOrCreate(
-            [
-                'referencia' => (string) $orden->referencia,
-                'color' => (string) $orden->color,
-                'tipo' => $tipo,
-            ],
-            [
-                'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
-                'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
-                'precio_detal' => 0,
-                'precio_mayor' => 0,
-                'costo_produccion' => 0,
-                'activo' => true,
-                'imagen' => ProductoCatalog::imageUrlFor(
-                    (string) $orden->referencia,
-                    (string) $orden->color,
-                    $tipo
-                ),
-            ]
-        );
+        if (! $producto) {
+            throw new \RuntimeException("La orden {$orden->numero_orden} usa una referencia/color que no existe en productos.");
+        }
+
+        return ProductoCatalog::applyToProduct($producto);
     }
 
     private function inferirTipoProducto(string $referencia): string
@@ -966,6 +1015,8 @@ class ProductionController extends Controller
 
     private function formatOrden(OrdenProduccion $orden): array
     {
+        [$rolActual, $responsableActualId] = $this->responsableActualOrden($orden);
+
         return [
             'id' => $orden->id,
             'numeroOrden' => $orden->numero_orden,
@@ -995,6 +1046,9 @@ class ProductionController extends Controller
             'fechaFinEmplantillado' => optional($orden->fecha_fin_emplantillado)->toISOString(),
             'fechaFinTerminado' => optional($orden->fecha_fin_terminado)->toISOString(),
             'estado' => $orden->estado,
+            'rolActual' => $rolActual,
+            'responsableActualId' => $responsableActualId,
+            'pendienteAsignacion' => $rolActual !== null && $responsableActualId === null,
             'puedePasarAStock' => $orden->estado === 'LISTO_PARA_STOCK' && $this->debeEsperarIngresoStock($orden),
             't34' => $orden->t34,
             't35' => $orden->t35,
@@ -1009,5 +1063,36 @@ class ProductionController extends Controller
             't44' => $orden->t44,
             'totalPares' => $orden->total_pares,
         ];
+    }
+
+    private function formatProductoProduccion(Producto $producto): array
+    {
+        $producto->loadMissing('tarifaCategoria:id,nombre');
+        $producto = ProductoCatalog::applyToProduct($producto);
+
+        return [
+            'id' => $producto->id,
+            'nombreModelo' => $producto->nombre_modelo,
+            'referencia' => $producto->referencia,
+            'color' => $producto->color,
+            'tipo' => $producto->tipo,
+            'tarifaCategoriaId' => $producto->tarifa_categoria_id,
+            'tarifaCategoriaNombre' => $producto->tarifaCategoria?->nombre,
+            'precioDetal' => $producto->precio_detal,
+            'precioMayor' => $producto->precio_mayor,
+            'imagen' => $producto->imagen_src,
+        ];
+    }
+
+    private function responsableActualOrden(OrdenProduccion $orden): array
+    {
+        return match ((string) $orden->estado) {
+            'EN_CORTE' => ['CORTE', $orden->cortador_id],
+            'EN_ARMADO' => ['ARMADOR', $orden->armador_id],
+            'EN_COSTURA' => ['COSTURERO', $orden->costurero_id],
+            'EN_SOLADURA' => ['SOLADOR', $orden->solador_id],
+            'EN_EMPLANTILLADO' => ['EMPLANTILLADOR', $orden->emplantillador_id],
+            default => [null, null],
+        };
     }
 }

@@ -6,6 +6,8 @@ use App\Models\InventarioZapato;
 use App\Models\InventarioMovimiento;
 use App\Models\Producto;
 use App\Support\ProductoCatalog;
+use App\Support\ProductoCategoria;
+use App\Support\ProductoPrecio;
 use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -567,6 +569,10 @@ class StockController extends Controller
                 continue;
             }
 
+            $categoriaId = ProductoCategoria::idSugerido($referencia, $tipo);
+            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+            $precios = ProductoPrecio::para($tipo, $categoriaNombre);
+
             Producto::query()->updateOrCreate(
                 [
                     'referencia' => $referencia,
@@ -576,9 +582,10 @@ class StockController extends Controller
                 [
                     'nombre_modelo' => trim($referencia . ' - ' . $color),
                     'descripcion' => "Producto sincronizado desde stock {$tipo}",
-                    'precio_detal' => 0,
-                    'precio_mayor' => 0,
+                    'precio_detal' => $precios['detal'],
+                    'precio_mayor' => $precios['mayor'],
                     'costo_produccion' => 0,
+                    'tarifa_categoria_id' => $categoriaId,
                     'activo' => true,
                     'imagen' => ProductoCatalog::imageUrlFor($referencia, $color, $tipo),
                 ]

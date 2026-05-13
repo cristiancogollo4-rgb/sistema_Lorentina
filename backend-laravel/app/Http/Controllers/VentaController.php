@@ -11,6 +11,8 @@ use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
 use App\Support\ProductoCatalog;
+use App\Support\ProductoCategoria;
+use App\Support\ProductoPrecio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -273,6 +275,13 @@ class VentaController extends Controller
         $productoIds = [];
 
         foreach ($stockDisponible as $registro) {
+            $categoriaId = ProductoCategoria::idSugerido(
+                (string) $registro->referencia,
+                (string) $registro->tipo
+            );
+            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+            $precios = ProductoPrecio::para((string) $registro->tipo, $categoriaNombre);
+
             $producto = Producto::query()->updateOrCreate(
                 [
                     'referencia' => $registro->referencia,
@@ -282,9 +291,10 @@ class VentaController extends Controller
                 [
                     'nombre_modelo' => trim($registro->referencia . ' - ' . $registro->color),
                     'descripcion' => "Producto sincronizado desde stock {$registro->tipo}",
-                    'precio_detal' => 0,
-                    'precio_mayor' => 0,
+                    'precio_detal' => $precios['detal'],
+                    'precio_mayor' => $precios['mayor'],
                     'costo_produccion' => 0,
+                    'tarifa_categoria_id' => $categoriaId,
                     'activo' => true,
                     'imagen' => ProductoCatalog::imageUrlFor(
                         (string) $registro->referencia,
@@ -398,6 +408,13 @@ class VentaController extends Controller
      */
     private function productoDesdeCatalogo(array $item): Producto
     {
+        $categoriaId = ProductoCategoria::idSugerido(
+            (string) ($item['referencia'] ?? ''),
+            (string) ($item['tipo'] ?? 'PLANA')
+        );
+        $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+        $precios = ProductoPrecio::para((string) ($item['tipo'] ?? 'PLANA'), $categoriaNombre);
+
         return Producto::query()->updateOrCreate(
             [
                 'referencia' => (string) ($item['referencia'] ?? ''),
@@ -407,9 +424,10 @@ class VentaController extends Controller
             [
                 'nombre_modelo' => (string) ($item['product'] ?? trim(($item['referencia'] ?? '') . ' - ' . ($item['color'] ?? ''))),
                 'descripcion' => 'Producto autorizado desde catalogo Drive',
-                'precio_detal' => 0,
-                'precio_mayor' => 0,
+                'precio_detal' => $precios['detal'],
+                'precio_mayor' => $precios['mayor'],
                 'costo_produccion' => 0,
+                'tarifa_categoria_id' => $categoriaId,
                 'activo' => true,
                 'imagen' => $item['image_url'] ?? null,
             ]

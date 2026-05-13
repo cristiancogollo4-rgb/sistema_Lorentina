@@ -39,7 +39,7 @@
         </div>
 
         <div class="product-detail-info">
-            <span class="badge">{{ $producto->tipo ?? 'Calzado Lorentina' }}</span>
+            <span class="badge">{{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado Lorentina' }}</span>
 
             <h1>{{ $producto->nombre_modelo }}</h1>
 
@@ -66,7 +66,7 @@
 
                 <div>
                     <strong>Tipo</strong>
-                    <span>{{ $producto->tipo ?? 'Calzado' }}</span>
+                    <span>{{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado' }}</span>
                 </div>
             </div>
 
@@ -381,4 +381,3 @@
     });
 </script>
 @endpush
-

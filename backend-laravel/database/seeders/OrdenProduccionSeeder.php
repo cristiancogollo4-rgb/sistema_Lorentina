@@ -39,16 +39,31 @@ class OrdenProduccionSeeder extends Seeder
             ->get()
             ->keyBy('nombre');
 
+        $productos = Producto::query()
+            ->with('tarifaCategoria:id,nombre')
+            ->where('activo', true)
+            ->whereNotNull('referencia')
+            ->whereNotNull('color')
+            ->orderBy('referencia')
+            ->orderBy('color')
+            ->limit(4)
+            ->get()
+            ->values();
+
+        if ($productos->count() < 4) {
+            return;
+        }
+
         $ordenes = [
             [
                 'numero_orden' => 'OP-24001',
                 'fecha_inicio' => Carbon::now()->subDays(4),
                 'estado' => 'EN_CORTE',
-                'referencia' => 'LR-901',
-                'color' => 'Miel',
+                'referencia' => $productos[0]->referencia,
+                'color' => $productos[0]->color,
                 'materiales' => 'Cuero sintetico, suela TR, hebilla dorada',
                 'observacion' => 'Pedido urgente para exhibicion',
-                'categoria' => 'ROMANA',
+                'categoria' => $productos[0]->tarifaCategoria?->nombre ?? 'ROMANA',
                 'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['compras@calzadorivera.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
@@ -73,11 +88,11 @@ class OrdenProduccionSeeder extends Seeder
                 'fecha_inicio' => Carbon::now()->subDays(6),
                 'fecha_fin_corte' => Carbon::now()->subDays(5),
                 'estado' => 'EN_ARMADO',
-                'referencia' => 'LR-415',
-                'color' => 'Negro',
+                'referencia' => $productos[1]->referencia,
+                'color' => $productos[1]->color,
                 'materiales' => 'Capellada microfibra, suela PVC, plantilla confort',
                 'observacion' => 'Revisar horma 37 y 38',
-                'categoria' => 'CLASICA',
+                'categoria' => $productos[1]->tarifaCategoria?->nombre ?? 'CLASICA',
                 'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['pedidos@boutiquevalentina.co'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
@@ -104,11 +119,11 @@ class OrdenProduccionSeeder extends Seeder
                 'fecha_fin_armado' => Carbon::now()->subDays(6),
                 'fecha_fin_costura' => Carbon::now()->subDays(5),
                 'estado' => 'EN_SOLADURA',
-                'referencia' => 'LR-550',
-                'color' => 'Blanco',
+                'referencia' => $productos[2]->referencia,
+                'color' => $productos[2]->color,
                 'materiales' => 'Cuero vacuno, forro textil, suela expandida',
                 'observacion' => 'Cliente solicita empaque individual',
-                'categoria' => 'ZARA',
+                'categoria' => $productos[2]->tarifaCategoria?->nombre ?? 'PLATAFORMA / ZARA',
                 'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['compras@calzadorivera.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
@@ -138,11 +153,11 @@ class OrdenProduccionSeeder extends Seeder
                 'fecha_fin_emplantillado' => Carbon::now()->subDays(5),
                 'fecha_fin_terminado' => Carbon::now()->subDays(5),
                 'estado' => 'TERMINADO',
-                'referencia' => 'LR-777',
-                'color' => 'Rojo vino',
+                'referencia' => $productos[3]->referencia,
+                'color' => $productos[3]->color,
                 'materiales' => 'Sintetico premium, suela EVA, plantilla memory foam',
                 'observacion' => 'Lote listo para despacho',
-                'categoria' => 'ESPECIAL',
+                'categoria' => $productos[3]->tarifaCategoria?->nombre ?? 'CLASICA',
                 'destino' => 'CLIENTE',
                 'cliente_id' => $clientes['ventas@eltrebol.com'] ?? null,
                 'cortador_id' => $usuarios['jorge.perez'] ?? null,
@@ -209,21 +224,16 @@ class OrdenProduccionSeeder extends Seeder
             Venta::query()->whereIn('id', $ventaIds)->delete();
         }
 
-        $producto = Producto::query()->firstOrCreate(
-            [
-                'referencia' => (string) $orden->referencia,
-                'color' => (string) $orden->color,
-                'tipo' => str_starts_with(strtoupper((string) $orden->referencia), 'Z') ? 'PLATAFORMA' : 'PLANA',
-            ],
-            [
-                'nombre_modelo' => trim($orden->referencia . ' - ' . $orden->color),
-                'descripcion' => "Producto creado desde orden {$orden->numero_orden}",
-                'precio_detal' => 0,
-                'precio_mayor' => 0,
-                'costo_produccion' => 0,
-                'activo' => true,
-            ]
-        );
+        $producto = Producto::query()
+            ->where('referencia', (string) $orden->referencia)
+            ->where('color', (string) $orden->color)
+            ->where('activo', true)
+            ->orderBy('id')
+            ->first();
+
+        if (! $producto) {
+            return;
+        }
 
         $responsableId = User::query()
             ->where('rol', 'ADMIN')

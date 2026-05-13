@@ -114,7 +114,7 @@
                  onmouseleave="stopCarousel(this)">
                 <div class="card-img">
                     <span class="tag">
-                        {{ $producto->tipo ?? 'Calzado' }}
+                        {{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado' }}
                     </span>
 
                     @if($producto->tiene_stock_bajo)

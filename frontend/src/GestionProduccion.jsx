@@ -10,7 +10,7 @@ function GestionProduccion() {
 
   const [ordenes, setOrdenes] = useState([]);
   const [empleados, setEmpleados] = useState([]);
-  const [stats, setStats] = useState({ paresFabricar: 0, paresStock: 0 });
+  const [stats, setStats] = useState({ paresFabricar: 0, paresStock: 0, pendientesAsignacion: 0 });
   const [filtro, setFiltro] = useState('');
   const [filtroEmpleado, setFiltroEmpleado] = useState('');
   const [fechaInicio, setFechaInicio] = useState(() => {
@@ -192,6 +192,10 @@ function GestionProduccion() {
             <h4 style={{ margin: 0, color: '#2e7d32', fontSize: '0.9rem', textTransform: 'uppercase' }}>Pares Entrados a Stock</h4>
             <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#5D4037', marginTop: '5px' }}>{stats.paresStock}</div>
          </div>
+         <div style={{ background: '#fff7ed', padding: '15px 20px', borderRadius: '8px', borderLeft: '4px solid #ea580c', flex: 1, boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <h4 style={{ margin: 0, color: '#c2410c', fontSize: '0.9rem', textTransform: 'uppercase' }}>Pendientes por Asignar</h4>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#5D4037', marginTop: '5px' }}>{stats.pendientesAsignacion || 0}</div>
+         </div>
       </div>
 
       {cargando && <LoadingState mensaje="Cargando órdenes de producción..." />}
@@ -296,7 +300,13 @@ function GestionProduccion() {
           </thead>
           <tbody>
             {ordenesFiltradas.map((orden) => (
-              <tr key={orden.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr
+                key={orden.id}
+                style={{
+                  borderBottom: '1px solid #eee',
+                  background: orden.pendienteAsignacion ? '#fff7ed' : 'white',
+                }}
+              >
                 <td style={{ padding: '12px', fontWeight: 'bold' }}>{orden.numeroOrden || orden.numero_orden || 'S/N'}</td>
                 <td style={{ padding: '12px' }}>{orden.referencia || '---'}</td>
                 <td style={{ padding: '12px' }}>{orden.color || '---'}</td> 
@@ -305,6 +315,11 @@ function GestionProduccion() {
                    <span style={{ padding: '4px 10px', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold', background: '#e3f2fd', color: '#0d47a1', border: '1px solid #bbdefb' }}>
                        {orden.estado ? orden.estado.replace(/_/g, ' ') : 'PENDIENTE'}
                    </span>
+                   {orden.pendienteAsignacion && (
+                     <span style={{ marginLeft: '8px', padding: '4px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 'bold', background: '#fed7aa', color: '#9a3412', border: '1px solid #fdba74' }}>
+                       Sin asignar
+                     </span>
+                   )}
                 </td>
                 <td style={{ padding: '12px', color: '#555' }}>{obtenerNombreResponsable(orden)}</td>
                 <td style={{ padding: '12px', textAlign: 'center', display: 'flex', gap: '10px', justifyContent: 'center', alignItems: 'center' }}>

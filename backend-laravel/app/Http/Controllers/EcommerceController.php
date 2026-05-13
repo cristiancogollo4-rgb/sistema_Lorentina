@@ -19,6 +19,7 @@ class EcommerceController extends Controller
             ->groupBy('detalle_ventas.producto_id');
 
         $productos = Producto::query()
+            ->with('tarifaCategoria:id,nombre')
             ->joinSub($ventasSemana, 'ventas_semana', function ($join) {
                 $join->on('productos.id', '=', 'ventas_semana.producto_id');
             })
@@ -40,6 +41,7 @@ class EcommerceController extends Controller
             $idsActuales = $productos->pluck('id')->all();
 
             $respaldo = Producto::query()
+                ->with('tarifaCategoria:id,nombre')
                 ->join('inventario_zapatos', function($join) {
                     $join->on('productos.referencia', '=', 'inventario_zapatos.referencia')
                          ->on('productos.color', '=', 'inventario_zapatos.color');
@@ -64,6 +66,7 @@ class EcommerceController extends Controller
     public function productos(Request $request)
     {
         $query = Producto::query()
+            ->with('tarifaCategoria:id,nombre')
             ->join('inventario_zapatos', function($join) {
                 $join->on('productos.referencia', '=', 'inventario_zapatos.referencia')
                      ->on('productos.color', '=', 'inventario_zapatos.color');
@@ -76,15 +79,11 @@ class EcommerceController extends Controller
             $tipo = strtolower($request->input('tipo'));
             
             if ($tipo === 'romana') {
-                $query->whereIn('productos.referencia', ['1016', '1024', '1028', '1029', '1035', '1041', '1056', '1157', '1187', '1195']);
+                $query->whereHas('tarifaCategoria', fn ($q) => $q->where('nombre', 'ROMANA'));
             } elseif ($tipo === 'clasica') {
-                $query->where('productos.tipo', 'PLANA')
-                      ->whereNotIn('productos.referencia', ['1016', '1024', '1028', '1029', '1035', '1041', '1056', '1157', '1187', '1195']);
+                $query->whereHas('tarifaCategoria', fn ($q) => $q->where('nombre', 'CLASICA'));
             } elseif ($tipo === 'plataforma') {
-                $query->where(function($q) {
-                    $q->where('productos.tipo', 'PLATAFORMA')
-                      ->orWhere('productos.nombre_modelo', 'like', 'Z%');
-                });
+                $query->whereHas('tarifaCategoria', fn ($q) => $q->where('nombre', 'PLATAFORMA / ZARA'));
             } else {
                 $query->where('productos.tipo', 'LIKE', "%{$tipo}%");
             }
@@ -134,6 +133,7 @@ class EcommerceController extends Controller
     public function show($id)
     {
         $producto = Producto::where('activo', 1)
+            ->with('tarifaCategoria:id,nombre')
             ->findOrFail($id);
 
         abort_unless(

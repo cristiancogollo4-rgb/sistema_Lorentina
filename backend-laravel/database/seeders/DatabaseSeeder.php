@@ -15,10 +15,10 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             TarifaCategoriaSeeder::class,
             ClienteSeeder::class,
+            ProductCatalogSeeder::class,
             OrdenProduccionSeeder::class,
             LorentinaExcelSeeder::class,
             CompleteExistingClientsSeeder::class,
-            ProductCatalogSeeder::class,
             DemoSystemDataSeeder::class,
         ]);
     }

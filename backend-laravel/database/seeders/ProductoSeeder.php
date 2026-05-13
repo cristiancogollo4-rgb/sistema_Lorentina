@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\InventarioZapato;
 use App\Models\Producto;
+use App\Support\ProductoCategoria;
+use App\Support\ProductoPrecio;
 use Illuminate\Database\Seeder;
 
 class ProductoSeeder extends Seeder
@@ -18,6 +20,13 @@ class ProductoSeeder extends Seeder
             ->get();
 
         foreach ($registros as $registro) {
+            $categoriaId = ProductoCategoria::idSugerido(
+                (string) $registro->referencia,
+                (string) $registro->tipo
+            );
+            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+            $precios = ProductoPrecio::para((string) $registro->tipo, $categoriaNombre);
+
             Producto::query()->updateOrCreate(
                 [
                     'referencia' => $registro->referencia,
@@ -27,9 +36,10 @@ class ProductoSeeder extends Seeder
                 [
                     'nombre_modelo' => trim($registro->referencia . ' - ' . $registro->color),
                     'descripcion' => "Producto sincronizado desde stock {$registro->tipo}",
-                    'precio_detal' => 0,
-                    'precio_mayor' => 0,
+                    'precio_detal' => $precios['detal'],
+                    'precio_mayor' => $precios['mayor'],
                     'costo_produccion' => 0,
+                    'tarifa_categoria_id' => $categoriaId,
                     'activo' => true,
                 ]
             );

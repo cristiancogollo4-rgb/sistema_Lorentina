@@ -155,7 +155,7 @@
                  onmouseenter="startCarousel(this)"
                  onmouseleave="stopCarousel(this)">
                 <div class="product-img">
-                    <span class="product-tag">{{ $producto->tipo ?? 'Nuevo' }}</span>
+                    <span class="product-tag">{{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Nuevo' }}</span>
                     <img src="{{ $imagenes[0] }}" alt="{{ $producto->nombre_modelo }}" class="main-img" loading="lazy">
                     @if($hasMultiple)
                         <div class="carousel-dots">

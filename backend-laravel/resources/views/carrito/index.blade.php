@@ -40,7 +40,7 @@
                             $imagenCarrito = $item['imagen'] ?? null;
                             $imagenCarritoSrc = $imagenCarrito
                                 ? (str_starts_with($imagenCarrito, 'http') ? $imagenCarrito : asset('images/' . $imagenCarrito))
-                                : asset('images/default-shoe.jpg');
+                                : asset('images/LOGOLORENTINA.png');
                             $referencia = $item['referencia'] ?? '';
                             $color = $item['color'] ?? '';
                         @endphp
@@ -158,4 +158,3 @@
     }
 </script>
 @endpush
-

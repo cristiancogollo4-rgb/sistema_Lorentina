@@ -23,6 +23,7 @@ class DemoSystemDataSeeder extends Seeder
             $this->limpiarDatosDemo();
 
             $productos = Producto::query()
+                ->with('tarifaCategoria:id,nombre')
                 ->where('activo', true)
                 ->whereNotNull('referencia')
                 ->whereNotNull('color')
@@ -88,19 +89,14 @@ class DemoSystemDataSeeder extends Seeder
             'EN_ARMADO',
         ];
 
-        $categorias = $tarifas->keys()->values();
-        if ($categorias->isEmpty()) {
-            $categorias = collect(['ROMANA', 'CLASICA', 'ZARA', 'ESPECIAL']);
-        }
-
-        return collect($estados)->map(function (string $estado, int $index) use ($productos, $clientes, $usuarios, $tarifas, $categorias): OrdenProduccion {
+        return collect($estados)->map(function (string $estado, int $index) use ($productos, $clientes, $usuarios, $tarifas): OrdenProduccion {
             $producto = $productos[$index % $productos->count()];
             $esCliente = $index % 3 !== 0;
             $mayoristas = $clientes->get('MAYORISTA', collect())->values();
             $cliente = $esCliente && $mayoristas->isNotEmpty()
                 ? $mayoristas[$index % $mayoristas->count()]
                 : null;
-            $categoria = (string) $categorias[$index % $categorias->count()];
+            $categoria = (string) ($producto->tarifaCategoria?->nombre ?? 'CLASICA');
             $tarifa = $tarifas->get($categoria);
             $fechaInicio = Carbon::now()->subDays(12 - $index);
             $tallas = $this->tallasParaOrden($index);

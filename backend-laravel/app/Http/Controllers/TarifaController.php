@@ -42,6 +42,33 @@ class TarifaController extends Controller
         return response()->json(['msg' => 'Precios actualizados correctamente']);
     }
 
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'nombre' => ['required', 'string', 'max:255'],
+            'precioCorte' => ['nullable', 'numeric', 'min:0'],
+            'precioArmado' => ['nullable', 'numeric', 'min:0'],
+            'precioCostura' => ['nullable', 'numeric', 'min:0'],
+            'precioSoladura' => ['nullable', 'numeric', 'min:0'],
+            'precioEmplantillado' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $nombre = strtoupper(trim((string) $data['nombre']));
+
+        $tarifa = TarifaCategoria::query()->updateOrCreate(
+            ['nombre' => $nombre],
+            [
+                'precio_corte' => (int) ($data['precioCorte'] ?? 0),
+                'precio_armado' => (int) ($data['precioArmado'] ?? 0),
+                'precio_costura' => (int) ($data['precioCostura'] ?? 0),
+                'precio_soladura' => (int) ($data['precioSoladura'] ?? 0),
+                'precio_emplantillado' => (int) ($data['precioEmplantillado'] ?? 0),
+            ]
+        );
+
+        return response()->json($this->formatTarifa($tarifa), $tarifa->wasRecentlyCreated ? 201 : 200);
+    }
+
     private function formatTarifa(TarifaCategoria $tarifa): array
     {
         return [

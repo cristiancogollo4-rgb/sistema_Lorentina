@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Producto;
+use App\Support\ProductoCategoria;
+use App\Support\ProductoPrecio;
 use Illuminate\Http\Request;
 
 class AdminProductoController extends Controller
@@ -41,14 +43,19 @@ class AdminProductoController extends Controller
             $archivo->move(public_path('images'), $nombreImagen);
         }
 
+        $categoriaId = ProductoCategoria::idSugerido((string) $request->referencia, (string) $request->tipo);
+        $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+        $precios = ProductoPrecio::para((string) $request->tipo, $categoriaNombre);
+
         Producto::create([
             'nombre_modelo' => $request->nombre_modelo,
             'descripcion' => $request->descripcion,
             'referencia' => $request->referencia,
             'color' => $request->color,
             'tipo' => $request->tipo,
-            'precio_detal' => $request->precio_detal,
-            'precio_mayor' => $request->precio_mayor,
+            'tarifa_categoria_id' => $categoriaId,
+            'precio_detal' => $request->precio_detal ?: $precios['detal'],
+            'precio_mayor' => $request->precio_mayor ?: $precios['mayor'],
             'costo_produccion' => $request->costo_produccion,
             'activo' => 1,
             'imagen' => $nombreImagen,

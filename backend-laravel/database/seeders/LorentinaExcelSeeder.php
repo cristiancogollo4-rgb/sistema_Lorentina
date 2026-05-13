@@ -9,6 +9,8 @@ use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
 use App\Support\ProductoCatalog;
+use App\Support\ProductoCategoria;
+use App\Support\ProductoPrecio;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +132,13 @@ class LorentinaExcelSeeder extends Seeder
     private function seedProducts(array $records): void
     {
         foreach ($records as $record) {
+            $categoriaId = ProductoCategoria::idSugerido(
+                (string) $record['referencia'],
+                (string) ($record['tipo'] ?? 'PLANA')
+            );
+            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+            $precios = ProductoPrecio::para((string) ($record['tipo'] ?? 'PLANA'), $categoriaNombre);
+
             Producto::query()->updateOrCreate(
                 [
                     'referencia' => (string) $record['referencia'],
@@ -139,9 +148,10 @@ class LorentinaExcelSeeder extends Seeder
                 [
                     'nombre_modelo' => (string) ($record['nombre_modelo'] ?? trim($record['referencia'] . ' - ' . $record['color'])),
                     'descripcion' => (string) ($record['descripcion'] ?? 'Producto sincronizado desde Excel'),
-                    'precio_detal' => (float) ($record['precio_detal'] ?? 0),
-                    'precio_mayor' => (float) ($record['precio_mayor'] ?? 0),
+                    'precio_detal' => $precios['detal'],
+                    'precio_mayor' => $precios['mayor'],
                     'costo_produccion' => (float) ($record['costo_produccion'] ?? 0),
+                    'tarifa_categoria_id' => $categoriaId,
                     'activo' => (bool) ($record['activo'] ?? true),
                     'imagen' => ProductoCatalog::imageUrlFor(
                         (string) $record['referencia'],
@@ -321,6 +331,13 @@ class LorentinaExcelSeeder extends Seeder
             (string) ($item['tipo'] ?? 'PLANA')
         );
 
+        $categoriaId = ProductoCategoria::idSugerido(
+            (string) ($item['referencia'] ?? ''),
+            (string) ($item['tipo'] ?? 'PLANA')
+        );
+        $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
+        $precios = ProductoPrecio::para((string) ($item['tipo'] ?? 'PLANA'), $categoriaNombre);
+
         return Producto::query()->updateOrCreate(
             [
                 'referencia' => (string) ($item['referencia'] ?? ''),
@@ -330,9 +347,10 @@ class LorentinaExcelSeeder extends Seeder
             [
                 'nombre_modelo' => (string) ($catalogItem['product'] ?? trim(($item['referencia'] ?? '') . ' - ' . ($item['color'] ?? ''))),
                 'descripcion' => 'Producto autorizado desde catalogo Drive',
-                'precio_detal' => 0,
-                'precio_mayor' => 0,
+                'precio_detal' => $precios['detal'],
+                'precio_mayor' => $precios['mayor'],
                 'costo_produccion' => 0,
+                'tarifa_categoria_id' => $categoriaId,
                 'activo' => true,
                 'imagen' => $catalogItem['image_url'] ?? null,
             ]

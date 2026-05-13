@@ -37,7 +37,7 @@
                                 @if($producto->imagen)
                                     <img class="cart-img" src="{{ asset('images/' . $producto->imagen) }}" alt="{{ $producto->nombre_modelo }}">
                                 @else
-                                    <img class="cart-img" src="{{ asset('images/default-shoe.jpg') }}" alt="Calzado Lorentina">
+                                    <img class="cart-img" src="{{ asset('images/LOGOLORENTINA.png') }}" alt="Calzado Lorentina">
                                 @endif
                             </td>
 
