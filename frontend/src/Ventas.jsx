@@ -133,20 +133,17 @@ export default function Ventas({ usuario }) {
   }, [clientes, busquedaCliente]);
 
   async function cargarTodo() {
-    console.log("Iniciando cargarTodo...");
     setCargando(true);
     try {
       const isVendedor = usuario?.rol === 'VENDEDOR' || usuario?.rol?.includes('VENDEDOR');
       const vId = isVendedor ? usuario.id : filtroVendedor;
       const params = vId ? `?vendedor_id=${vId}` : '';
       
-      console.log("Consultando API ventas con params:", params);
       const [ventasRes, catalogoRes] = await Promise.all([
         api.get(`/ventas${params}`),
         api.get(`/ventas/catalogo?sucursal=${form.sucursal || 'CABECERA'}${vId ? `&vendedor_id=${vId}` : ''}`),
       ]);
 
-      console.log("Ventas recibidas:", ventasRes.data?.length);
       setVentas(ventasRes.data || []);
       setClientes(catalogoRes.data?.clientes || []);
       setLocales(catalogoRes.data?.locales || []);
@@ -158,7 +155,6 @@ export default function Ventas({ usuario }) {
       setError('Error de conexión o de servidor al cargar ventas.');
     } finally {
       setCargando(false);
-      console.log("Finalizado cargarTodo.");
     }
   }
 

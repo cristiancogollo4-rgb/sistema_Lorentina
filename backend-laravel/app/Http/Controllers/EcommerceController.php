@@ -136,18 +136,7 @@ class EcommerceController extends Controller
             ->with('tarifaCategoria:id,nombre')
             ->findOrFail($id);
 
-        abort_unless(
-            ProductoCatalog::isAllowed(
-                (string) $producto->referencia,
-                (string) $producto->color,
-                (string) $producto->tipo
-            ) && ProductoCatalog::imageUrlFor(
-                (string) $producto->referencia,
-                (string) $producto->color,
-                (string) $producto->tipo
-            ),
-            404
-        );
+        abort_unless($this->productoDisponibleEnEcommerce($producto), 404);
 
         ProductoCatalog::applyToProduct($producto);
 
@@ -156,20 +145,9 @@ class EcommerceController extends Controller
 
     public function agregarCarrito(Request $request, $id)
     {
-        $producto = Producto::findOrFail($id);
+        $producto = Producto::where('activo', 1)->findOrFail($id);
 
-        abort_unless(
-            ProductoCatalog::isAllowed(
-                (string) $producto->referencia,
-                (string) $producto->color,
-                (string) $producto->tipo
-            ) && ProductoCatalog::imageUrlFor(
-                (string) $producto->referencia,
-                (string) $producto->color,
-                (string) $producto->tipo
-            ),
-            404
-        );
+        abort_unless($this->productoDisponibleEnEcommerce($producto), 404);
 
         ProductoCatalog::applyToProduct($producto);
 
@@ -313,5 +291,22 @@ class EcommerceController extends Controller
         
         return response()->view('sitemap', compact('productos'))
             ->header('Content-Type', 'text/xml');
+    }
+
+    private function productoDisponibleEnEcommerce(Producto $producto): bool
+    {
+        if (
+            ! $producto->activo ||
+            blank($producto->referencia) ||
+            blank($producto->color)
+        ) {
+            return false;
+        }
+
+        return DB::table('inventario_zapatos')
+            ->where('referencia', $producto->referencia)
+            ->where('color', $producto->color)
+            ->where('total', '>', 0)
+            ->exists();
     }
 }

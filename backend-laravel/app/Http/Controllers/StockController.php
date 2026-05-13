@@ -4,10 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InventarioZapato;
 use App\Models\InventarioMovimiento;
-use App\Models\Producto;
-use App\Support\ProductoCatalog;
-use App\Support\ProductoCategoria;
-use App\Support\ProductoPrecio;
+use App\Support\ProductoSync;
 use App\Support\XlsxWorkbook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -569,27 +566,12 @@ class StockController extends Controller
                 continue;
             }
 
-            $categoriaId = ProductoCategoria::idSugerido($referencia, $tipo);
-            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
-            $precios = ProductoPrecio::para($tipo, $categoriaNombre);
-
-            Producto::query()->updateOrCreate(
-                [
-                    'referencia' => $referencia,
-                    'color' => $color,
-                    'tipo' => $tipo,
-                ],
-                [
-                    'nombre_modelo' => trim($referencia . ' - ' . $color),
-                    'descripcion' => "Producto sincronizado desde stock {$tipo}",
-                    'precio_detal' => $precios['detal'],
-                    'precio_mayor' => $precios['mayor'],
-                    'costo_produccion' => 0,
-                    'tarifa_categoria_id' => $categoriaId,
-                    'activo' => true,
-                    'imagen' => ProductoCatalog::imageUrlFor($referencia, $color, $tipo),
-                ]
-            );
+            ProductoSync::upsertConPreciosBase([
+                'referencia' => $referencia,
+                'color' => $color,
+                'tipo' => $tipo,
+                'descripcion' => "Producto sincronizado desde stock {$tipo}",
+            ]);
         }
     }
 

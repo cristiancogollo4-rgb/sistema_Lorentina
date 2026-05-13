@@ -18,7 +18,6 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 
 class ProductionController extends Controller
@@ -301,12 +300,6 @@ class ProductionController extends Controller
                     COUNT(DISTINCT CASE WHEN canal_venta = 'ONLINE' THEN cliente_id END) as clientes_apartados
                 ", [$inicioSemana, $inicioMes, $inicioSemanaAnterior, $finSemanaAnterior])
                 ->first();
-
-            Log::info("Métricas de Ventas detectadas:", [
-                'vendedor_id' => $vendedorId,
-                'semana' => $metricasVentas->ventas_semana ?? 0,
-                'mes' => $metricasVentas->ventas_mes ?? 0
-            ]);
 
             $ventasSemanaVendedor = (float) ($metricasVentas->ventas_semana ?? 0);
             $ventasMesVendedor = (float) ($metricasVentas->ventas_mes ?? 0);

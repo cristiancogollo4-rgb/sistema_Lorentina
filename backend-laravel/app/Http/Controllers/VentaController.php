@@ -11,13 +11,11 @@ use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
 use App\Support\ProductoCatalog;
-use App\Support\ProductoCategoria;
-use App\Support\ProductoPrecio;
+use App\Support\ProductoSync;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class VentaController extends Controller
@@ -25,7 +23,6 @@ class VentaController extends Controller
     public function index(Request $request): JsonResponse
     {
         $vendedorId = $request->query('vendedor_id');
-        Log::info("VentaController@index - vendedor_id recibido: " . ($vendedorId ?? 'NULL'));
 
         $query = Venta::query();
         if ($vendedorId) {
@@ -37,8 +34,6 @@ class VentaController extends Controller
             ->orderByDesc('fecha_venta')
             ->orderByDesc('id')
             ->get();
-
-        Log::info("VentaController@index - Ventas encontradas: " . $ventas->count());
 
         $result = $ventas->map(function (Venta $venta) {
                 return [
@@ -275,34 +270,12 @@ class VentaController extends Controller
         $productoIds = [];
 
         foreach ($stockDisponible as $registro) {
-            $categoriaId = ProductoCategoria::idSugerido(
-                (string) $registro->referencia,
-                (string) $registro->tipo
-            );
-            $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
-            $precios = ProductoPrecio::para((string) $registro->tipo, $categoriaNombre);
-
-            $producto = Producto::query()->updateOrCreate(
-                [
-                    'referencia' => $registro->referencia,
-                    'color' => $registro->color,
-                    'tipo' => $registro->tipo,
-                ],
-                [
-                    'nombre_modelo' => trim($registro->referencia . ' - ' . $registro->color),
-                    'descripcion' => "Producto sincronizado desde stock {$registro->tipo}",
-                    'precio_detal' => $precios['detal'],
-                    'precio_mayor' => $precios['mayor'],
-                    'costo_produccion' => 0,
-                    'tarifa_categoria_id' => $categoriaId,
-                    'activo' => true,
-                    'imagen' => ProductoCatalog::imageUrlFor(
-                        (string) $registro->referencia,
-                        (string) $registro->color,
-                        (string) $registro->tipo
-                    ),
-                ]
-            );
+            $producto = ProductoSync::upsertConPreciosBase([
+                'referencia' => $registro->referencia,
+                'color' => $registro->color,
+                'tipo' => $registro->tipo,
+                'descripcion' => "Producto sincronizado desde stock {$registro->tipo}",
+            ]);
 
             $productoIds[] = $producto->id;
         }
@@ -408,30 +381,9 @@ class VentaController extends Controller
      */
     private function productoDesdeCatalogo(array $item): Producto
     {
-        $categoriaId = ProductoCategoria::idSugerido(
-            (string) ($item['referencia'] ?? ''),
-            (string) ($item['tipo'] ?? 'PLANA')
-        );
-        $categoriaNombre = \App\Models\TarifaCategoria::query()->where('id', $categoriaId)->value('nombre');
-        $precios = ProductoPrecio::para((string) ($item['tipo'] ?? 'PLANA'), $categoriaNombre);
-
-        return Producto::query()->updateOrCreate(
-            [
-                'referencia' => (string) ($item['referencia'] ?? ''),
-                'color' => (string) ($item['color'] ?? ''),
-                'tipo' => (string) ($item['tipo'] ?? 'PLANA'),
-            ],
-            [
-                'nombre_modelo' => (string) ($item['product'] ?? trim(($item['referencia'] ?? '') . ' - ' . ($item['color'] ?? ''))),
-                'descripcion' => 'Producto autorizado desde catalogo Drive',
-                'precio_detal' => $precios['detal'],
-                'precio_mayor' => $precios['mayor'],
-                'costo_produccion' => 0,
-                'tarifa_categoria_id' => $categoriaId,
-                'activo' => true,
-                'imagen' => $item['image_url'] ?? null,
-            ]
-        );
+        return ProductoSync::upsertConPreciosBase($item + [
+            'descripcion' => 'Producto autorizado desde catalogo Drive',
+        ]);
     }
 
     /**
@@ -569,31 +521,6 @@ class VentaController extends Controller
                 (string) $producto->tipo
             );
         }
-    }
-
-    /**
-     * @param array<int, int> $productoIds
-     * @return array<int, array<int, int>>
-     */
-    private function obtenerCantidadesVendidas(array $productoIds): array
-    {
-        if ($productoIds === []) {
-            return [];
-        }
-
-        $vendidos = DB::table('detalle_ventas')
-            ->select('producto_id', 'talla', DB::raw('SUM(cantidad) as cantidad_vendida'))
-            ->whereIn('producto_id', $productoIds)
-            ->groupBy('producto_id', 'talla')
-            ->get();
-
-        $resultado = [];
-
-        foreach ($vendidos as $vendido) {
-            $resultado[$vendido->producto_id][$vendido->talla] = (int) $vendido->cantidad_vendida;
-        }
-
-        return $resultado;
     }
 
     /**

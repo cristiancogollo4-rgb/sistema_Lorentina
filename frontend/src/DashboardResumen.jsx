@@ -37,7 +37,6 @@ function DashboardResumen({ usuario }) {
     api.get(`/produccion/tablero${params}`)
       .then(res => {
         try {
-          console.log("Datos del Dashboard recibidos:", res.data);
           const ordenes = Array.isArray(res.data.ordenes) ? res.data.ordenes : [];
           setVendedores(res.data.vendedores || []);
           
