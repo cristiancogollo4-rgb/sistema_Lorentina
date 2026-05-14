@@ -160,10 +160,11 @@ class VentaController extends Controller
         $data = $request->validate([
             'cliente_id' => ['required', 'integer', 'exists:clientes,id'],
             'vendedor_id' => ['required', 'integer', 'exists:users,id'],
-            'canal_venta' => ['required', 'in:ONLINE,LOCAL'],
+            'canal_venta' => ['required', 'in:ONLINE,LOCAL,WHATSAPP,INSTAGRAM,MESSENGER'],
             'local_id' => ['nullable', 'integer', 'required_if:canal_venta,LOCAL', 'exists:locales,id'],
             'sucursal' => ['required', 'in:CABECERA,FABRICA'],
             'metodo_pago' => ['required', 'string', 'max:80'],
+            'titular_cuenta' => ['nullable', 'string', 'max:120'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.producto_id' => ['required', 'integer', 'exists:productos,id'],
             'items.*.talla' => ['required', 'integer', 'between:34,44'],

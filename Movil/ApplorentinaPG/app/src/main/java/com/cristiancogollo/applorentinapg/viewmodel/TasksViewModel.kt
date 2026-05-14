@@ -56,7 +56,7 @@ class TasksViewModel : ViewModel() {
         viewModelScope.launch {
             android.util.Log.d("API_TEST", "Iniciando envío: Orden $ordenId, Rol $rol")
             try {
-                val request = TerminarTareaRequest(ordenId, rol)
+                val request = TerminarTareaRequest(ordenId, rol, userId)
                 val response = api.terminarTarea(request)
 
                 if (response.isSuccessful) {

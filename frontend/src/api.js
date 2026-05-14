@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const defaultApiUrl = `${window.location.protocol}//${window.location.hostname || 'localhost'}:8000/api`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://192.168.101.10:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
 });
 
 export default api;

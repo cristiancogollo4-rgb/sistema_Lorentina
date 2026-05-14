@@ -18,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 
 class ProductionController extends Controller
@@ -296,8 +297,8 @@ class ProductionController extends Controller
                     SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_semana,
                     SUM(CASE WHEN fecha_venta >= ? THEN total ELSE 0 END) as ventas_mes,
                     SUM(CASE WHEN fecha_venta >= ? AND fecha_venta < ? THEN total ELSE 0 END) as ventas_semana_anterior,
-                    COUNT(CASE WHEN canal_venta = 'ONLINE' THEN 1 END) as ventas_sin_despachar,
-                    COUNT(DISTINCT CASE WHEN canal_venta = 'ONLINE' THEN cliente_id END) as clientes_apartados
+                    COUNT(CASE WHEN canal_venta != 'LOCAL' THEN 1 END) as ventas_sin_despachar,
+                    COUNT(DISTINCT CASE WHEN canal_venta != 'LOCAL' THEN cliente_id END) as clientes_apartados
                 ", [$inicioSemana, $inicioMes, $inicioSemanaAnterior, $finSemanaAnterior])
                 ->first();
 
@@ -436,11 +437,35 @@ class ProductionController extends Controller
         $data = $request->validate([
             'ordenId' => ['required', 'integer'],
             'rol' => ['required', 'string'],
+            'empleadoId' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
         $rol = strtoupper($data['rol']);
         $orden = OrdenProduccion::findOrFail($data['ordenId']);
         $ahora = now();
+        $responsables = [
+            'CORTE' => ['estado' => 'EN_CORTE', 'campo' => 'cortador_id'],
+            'ARMADOR' => ['estado' => 'EN_ARMADO', 'campo' => 'armador_id'],
+            'ARMADO' => ['estado' => 'EN_ARMADO', 'campo' => 'armador_id'],
+            'COSTURERO' => ['estado' => 'EN_COSTURA', 'campo' => 'costurero_id'],
+            'COSTURA' => ['estado' => 'EN_COSTURA', 'campo' => 'costurero_id'],
+            'SOLADOR' => ['estado' => 'EN_SOLADURA', 'campo' => 'solador_id'],
+            'SOLADURA' => ['estado' => 'EN_SOLADURA', 'campo' => 'solador_id'],
+            'EMPLANTILLADOR' => ['estado' => 'EN_EMPLANTILLADO', 'campo' => 'emplantillador_id'],
+        ];
+
+        if (! isset($responsables[$rol])) {
+            return response()->json(['error' => 'Rol no valido'], 400);
+        }
+
+        $responsable = $responsables[$rol];
+        if ($orden->estado !== $responsable['estado']) {
+            return response()->json(['error' => 'La orden no esta en la etapa que intentas cerrar.'], 422);
+        }
+
+        if (isset($data['empleadoId']) && (int) $orden->{$responsable['campo']} !== (int) $data['empleadoId']) {
+            return response()->json(['error' => 'Esta tarea esta asignada a otro empleado.'], 403);
+        }
 
         if ($rol === 'CORTE') {
             $orden->update(['estado' => 'EN_ARMADO', 'fecha_fin_corte' => $ahora, 'armador_id' => null]);

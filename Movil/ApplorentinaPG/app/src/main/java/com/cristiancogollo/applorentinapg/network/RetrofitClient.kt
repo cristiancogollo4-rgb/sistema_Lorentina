@@ -17,7 +17,8 @@ import retrofit2.http.Query
 
 data class TerminarTareaRequest(
     val ordenId: Int,
-    val rol: String
+    val rol: String,
+    val empleadoId: Int? = null
 )
 
 interface ApiService {
