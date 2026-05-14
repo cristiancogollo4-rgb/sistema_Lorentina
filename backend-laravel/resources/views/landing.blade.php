@@ -155,7 +155,7 @@
                  onmouseenter="startCarousel(this)"
                  onmouseleave="stopCarousel(this)">
                 <div class="product-img">
-                    <span class="product-tag">{{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Nuevo' }}</span>
+                    <span class="product-tag">{{ $producto->promocion_activa ? ($producto->etiqueta_promocion ?: 'Promo') : ($producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Nuevo') }}</span>
                     <img src="{{ $imagenes[0] }}" alt="{{ $producto->nombre_modelo }}" class="main-img" loading="lazy">
                     @if($hasMultiple)
                         <div class="carousel-dots">
@@ -168,7 +168,12 @@
                 <div class="product-info">
                     <span class="product-ref">Ref: {{ $producto->referencia ?? 'LR' }}</span>
                     <h3>{{ $producto->nombre_modelo }}</h3>
-                    <p class="product-price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</p>
+                    <p class="product-price">
+                        ${{ number_format($producto->precio_ecommerce, 0, ',', '.') }}
+                        @if ($producto->promocion_activa)
+                            <span class="old-price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</span>
+                        @endif
+                    </p>
                     @if(! empty($producto->total_vendido_semana))
                         <p class="product-sales">{{ (int) $producto->total_vendido_semana }} pares vendidos esta semana</p>
                     @endif

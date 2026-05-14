@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from './api';
 import LoadingState from './components/LoadingState';
 
-function DashboardResumen({ usuario }) {
+function DashboardResumen({ usuario, onNavigate }) {
   const [stats, setStats] = useState({
     paresFabricar: 0,
     paresStock: 0,
@@ -24,6 +24,35 @@ function DashboardResumen({ usuario }) {
 
   const [loading, setLoading] = useState(true);
   const esVendedor = usuario?.rol === 'VENDEDOR';
+  const accionesRapidas = esVendedor
+    ? [
+        {
+          icono: '📞',
+          titulo: 'Contactar clientes clave',
+          descripcion: 'Dar seguimiento a clientes sin compra reciente.',
+          destino: 'clientes'
+        },
+        {
+          icono: '🧾',
+          titulo: 'Gestionar pedidos apartados',
+          descripcion: 'Priorizar ventas online pendientes por despacho.',
+          destino: 'apartados'
+        }
+      ]
+    : [
+        {
+          icono: '🔨',
+          titulo: 'Lanzar Nueva Producción',
+          descripcion: 'Crear orden para planta',
+          destino: 'fabricar'
+        },
+        {
+          icono: '💰',
+          titulo: 'Pagar Nómina',
+          descripcion: 'Ver destajos y pagos de la semana',
+          destino: 'nomina'
+        }
+      ];
 
 
   const [vendedores, setVendedores] = useState([]);
@@ -196,20 +225,20 @@ function DashboardResumen({ usuario }) {
             <div style={{ background: 'white', padding: '25px', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
               <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>⚡ {esVendedor ? 'Acciones Comerciales' : 'Accesos Rápidos'}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div className="quick-action-card">
-                  <span style={{ fontSize: '1.5rem' }}>{esVendedor ? '📞' : '🔨'}</span>
-                  <div>
-                    <h4 style={{ margin: 0, color: '#475569' }}>{esVendedor ? 'Contactar clientes clave' : 'Lanzar Nueva Producción'}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>{esVendedor ? 'Dar seguimiento a clientes sin compra reciente.' : 'Crear orden para planta'}</p>
-                  </div>
-                </div>
-                <div className="quick-action-card">
-                  <span style={{ fontSize: '1.5rem' }}>{esVendedor ? '🧾' : '💰'}</span>
-                  <div>
-                    <h4 style={{ margin: 0, color: '#475569' }}>{esVendedor ? 'Gestionar pedidos apartados' : 'Pagar Nómina'}</h4>
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>{esVendedor ? 'Priorizar ventas online pendientes por despacho.' : 'Ver destajos y pagos de la semana'}</p>
-                  </div>
-                </div>
+                {accionesRapidas.map((accion) => (
+                  <button
+                    key={accion.destino}
+                    type="button"
+                    className="quick-action-card"
+                    onClick={() => onNavigate?.(accion.destino)}
+                  >
+                    <span style={{ fontSize: '1.5rem' }}>{accion.icono}</span>
+                    <div>
+                      <h4 style={{ margin: 0, color: '#475569' }}>{accion.titulo}</h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>{accion.descripcion}</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

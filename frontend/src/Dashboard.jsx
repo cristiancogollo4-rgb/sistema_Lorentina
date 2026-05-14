@@ -8,6 +8,7 @@ import DashboardResumen from './DashboardResumen';
 import Clientes from './Clientes';
 import Ventas from './Ventas';
 import Nomina from './Nomina';
+import EcommerceAdmin from './EcommerceAdmin';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -90,6 +91,13 @@ function Dashboard() {
               </li>
 
               <li
+                className={`menu-item ${activeTab === 'ecommerce' ? 'active' : ''}`}
+                onClick={() => setActiveTab('ecommerce')}
+              >
+                <span>E-commerce</span>
+              </li>
+
+              <li
                 className={`menu-item ${activeTab === 'nomina' ? 'active' : ''}`}
                 onClick={() => setActiveTab('nomina')}
               >
@@ -166,7 +174,7 @@ function Dashboard() {
         </header>
 
         <div className="content-area">
-          {activeTab === 'dashboard' && <DashboardResumen usuario={usuario} />}
+          {activeTab === 'dashboard' && <DashboardResumen usuario={usuario} onNavigate={setActiveTab} />}
           {activeTab === 'empleados' && <Empleados />}
           {activeTab === 'stock' && <Stock soloLectura={usuario.rol === 'VENDEDOR'} />}
           {activeTab === 'produccion' && <GestionProduccion />}
@@ -178,6 +186,7 @@ function Dashboard() {
             </h2>
           )}
           {activeTab === 'ventas' && <Ventas usuario={usuario} />}
+          {activeTab === 'ecommerce' && <EcommerceAdmin />}
           {activeTab === 'nomina' && <Nomina />}
         </div>
       </main>

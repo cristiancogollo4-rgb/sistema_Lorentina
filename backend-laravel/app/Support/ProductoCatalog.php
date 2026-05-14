@@ -74,7 +74,7 @@ class ProductoCatalog
     {
         $item = self::find($referencia, $color, $tipo);
 
-        return $item['image_url'] ?? null;
+        return $item ? self::bestImageUrl($item) : null;
     }
 
     public static function applyToProduct(Producto $producto): Producto
@@ -91,8 +91,10 @@ class ProductoCatalog
 
         $producto->nombre_modelo = (string) ($item['product'] ?? $producto->nombre_modelo);
         
-        if (!empty($item['image_url'])) {
-            $producto->imagen = $item['image_url'];
+        $imageUrl = self::bestImageUrl($item);
+
+        if ($imageUrl) {
+            $producto->imagen = $imageUrl;
         }
 
         if (!empty($item['images'])) {
@@ -163,6 +165,61 @@ class ProductoCatalog
             (string) ($item['color'] ?? ''),
             (string) ($item['tipo'] ?? 'PLANA')
         );
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    public static function bestImageUrl(array $item): ?string
+    {
+        return self::imageUrls($item)[0] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<int, string>
+     */
+    public static function imageUrls(array $item): array
+    {
+        $sourceFiles = $item['source_files'] ?? [];
+        $links = $item['all_links'] ?? [];
+        $urls = [];
+
+        if (is_array($sourceFiles) && is_array($links)) {
+            foreach ($sourceFiles as $index => $sourceFile) {
+                if (! self::isImageFile((string) $sourceFile)) {
+                    continue;
+                }
+
+                $link = $links[$index] ?? null;
+
+                if (is_string($link) && $link !== '') {
+                    $urls[] = self::thumbnailUrl($link);
+                }
+            }
+        }
+
+        if (isset($item['image_url']) && is_string($item['image_url'])) {
+            $urls[] = self::thumbnailUrl($item['image_url']);
+        }
+
+        return array_values(array_unique($urls));
+    }
+
+    private static function isImageFile(string $filename): bool
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+    }
+
+    private static function thumbnailUrl(string $url): string
+    {
+        if (preg_match('/(?:id=|\/d\/)([a-zA-Z0-9_-]+)/', $url, $matches)) {
+            return "https://drive.google.com/thumbnail?id={$matches[1]}&sz=w1000";
+        }
+
+        return $url;
     }
 
     public static function normalize(string $value): string

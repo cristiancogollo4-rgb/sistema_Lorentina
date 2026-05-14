@@ -8,6 +8,7 @@ const CANALES = {
   INSTAGRAM: { label: 'Instagram' },
   LOCAL: { label: 'Local' },
   MESSENGER: { label: 'Messenger' },
+  ONLINE: { label: 'Online' },
 };
 
 const FORM_VENTA = {
@@ -530,6 +531,12 @@ export default function Ventas({ usuario }) {
                 </td>
                 <td style={{ color: '#555', fontSize: '0.9rem' }}>
                   <strong>{CANALES[venta.canalVenta]?.label || venta.canalVenta}</strong>
+                  {venta.origen === 'ONLINE' && (
+                    <>
+                      <br />
+                      <span style={tagOnline}>Pedido online</span>
+                    </>
+                  )}
                   {venta.local && (
                     <>
                       <br />
@@ -959,6 +966,17 @@ const tagCantidad = {
   padding: '1px 6px',
   borderRadius: '4px',
   fontSize: '0.75rem'
+};
+
+const tagOnline = {
+  display: 'inline-block',
+  marginTop: '4px',
+  background: '#e0f2fe',
+  color: '#0369a1',
+  fontWeight: 'bold',
+  padding: '3px 8px',
+  borderRadius: '999px',
+  fontSize: '0.72rem'
 };
 
 const cardProducto = { background: 'white', border: '1px solid #eee', borderRadius: '12px', padding: '12px', transition: 'all 0.2s' };

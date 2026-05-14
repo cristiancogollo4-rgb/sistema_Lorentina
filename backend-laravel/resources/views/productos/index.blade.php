@@ -114,7 +114,7 @@
                  onmouseleave="stopCarousel(this)">
                 <div class="card-img">
                     <span class="tag">
-                        {{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado' }}
+                        {{ $producto->promocion_activa ? ($producto->etiqueta_promocion ?: 'Promo') : ($producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado') }}
                     </span>
 
                     @if($producto->tiene_stock_bajo)
@@ -158,7 +158,12 @@
                     </div>
 
                     <div class="price-row">
-                        <span class="price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</span>
+                        <span class="price">
+                            ${{ number_format($producto->precio_ecommerce, 0, ',', '.') }}
+                            @if ($producto->promocion_activa)
+                                <span class="old-price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</span>
+                            @endif
+                        </span>
                         <a href="{{ route('productos.show', $producto->id) }}" class="btn btn-primary">
                             Ver detalle
                         </a>

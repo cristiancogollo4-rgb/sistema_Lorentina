@@ -664,17 +664,27 @@ body {
   display: flex;
   align-items: center;
   gap: 15px;
+  width: 100%;
   padding: 15px;
   background: #f8fafc;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
+  color: inherit;
   cursor: pointer;
+  font: inherit;
+  text-align: left;
   transition: all 0.2s ease;
 }
 
-.quick-action-card:hover {
+.quick-action-card:hover,
+.quick-action-card:focus-visible {
   background: #ffffff;
   border-color: var(--color-gold);
   box-shadow: 0 4px 10px rgba(197, 160, 89, 0.15);
   transform: translateX(5px);
+}
+
+.quick-action-card:focus-visible {
+  outline: 3px solid rgba(197, 160, 89, 0.35);
+  outline-offset: 2px;
 }

@@ -39,7 +39,7 @@
         </div>
 
         <div class="product-detail-info">
-            <span class="badge">{{ $producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado Lorentina' }}</span>
+            <span class="badge">{{ $producto->promocion_activa ? ($producto->etiqueta_promocion ?: 'Promo') : ($producto->tarifaCategoria?->nombre ?? $producto->tipo ?? 'Calzado Lorentina') }}</span>
 
             <h1>{{ $producto->nombre_modelo }}</h1>
 
@@ -71,7 +71,10 @@
             </div>
 
             <div class="detail-price">
-                ${{ number_format($producto->precio_detal, 0, ',', '.') }}
+                ${{ number_format($producto->precio_ecommerce, 0, ',', '.') }}
+                @if ($producto->promocion_activa)
+                    <span class="old-price">${{ number_format($producto->precio_detal, 0, ',', '.') }}</span>
+                @endif
             </div>
 
             <form action="{{ route('carrito.agregar', $producto->id) }}" method="POST">
@@ -365,7 +368,7 @@
             '*{{ $producto->nombre_modelo }}*',
             'Ref: {{ $producto->referencia }}',
             'Color: {{ $producto->color }}',
-            'Precio: ${{ number_format($producto->precio_detal, 0, ',', '.') }}',
+            'Precio: ${{ number_format($producto->precio_ecommerce, 0, ',', '.') }}',
             'Imagen: {{ $imagenes[0] }}',
             '',
             window.location.href

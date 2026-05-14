@@ -161,6 +161,26 @@
             transform: translateY(-1px);
         }
 
+        .nav-form {
+            margin: 0;
+        }
+
+        .nav-button {
+            background: transparent;
+            border: 0;
+            color: white;
+            cursor: pointer;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 9px 14px;
+            border-radius: 999px;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.14);
+        }
+
         .nav-admin {
             background: var(--crema-logo);
             color: var(--chocolate);
@@ -678,7 +698,8 @@
         }
 
         .form-group input,
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
             padding: 13px 14px;
             border-radius: 14px;
@@ -687,6 +708,109 @@
             font-family: inherit;
             background: #fffaf5;
             color: var(--texto);
+        }
+
+        .checkout-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .checkout-panel {
+            background: white;
+            border: 1px solid #efe4d8;
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            padding: 28px;
+        }
+
+        .checkout-panel h3 {
+            margin: 0 0 18px;
+        }
+
+        .checkout-summary-item,
+        .account-order-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            border-bottom: 1px solid #efe4d8;
+            padding: 12px 0;
+        }
+
+        .checkout-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.25rem;
+            font-weight: 900;
+            margin-top: 20px;
+        }
+
+        .account-callout {
+            align-items: center;
+            background: #fffaf5;
+            border: 1px solid #ead6c6;
+            border-radius: 16px;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding: 16px;
+        }
+
+        .account-links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .account-tabs {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        .account-tabs a {
+            border: 1px solid #e2cdb8;
+            border-radius: 999px;
+            color: var(--chocolate);
+            font-weight: 900;
+            padding: 10px 18px;
+        }
+
+        .account-tabs a.active {
+            background: var(--chocolate);
+            color: white;
+        }
+
+        .account-orders {
+            display: grid;
+            gap: 16px;
+        }
+
+        .account-order {
+            border: 1px solid #efe4d8;
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .account-order-items {
+            display: grid;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .address-edit {
+            margin-top: 14px;
+        }
+
+        .old-price {
+            color: #9f8e82;
+            font-size: 0.85rem;
+            font-weight: 800;
+            margin-left: 8px;
+            text-decoration: line-through;
         }
 
         .product-detail {
@@ -1211,20 +1335,26 @@
 <body data-session-cart='@json(session('carrito', []))' data-cart-sync-url="{{ route('carrito.sincronizar') }}" data-cart-cleared="{{ session('cart_cleared') ? '1' : '0' }}">
 
     <header>
-        <div class="brand">
+        <a class="brand" href="{{ route('landing') }}" aria-label="Ir al inicio">
             <img class="brand-logo" src="{{ asset('images/coronalorentina.JPG') }}" alt="Lorentina">
 
             <div class="brand-text">
                 <h1>Lorentina</h1>
                 <span>Calzado artesanal con alma de Bucaramanga</span>
             </div>
-        </div>
+        </a>
 
         <nav>
 
             <a href="{{ route('landing') }}">Inicio</a>
 
             <a href="{{ route('productos.index') }}">Productos</a>
+
+            @if (session('cliente_ecommerce_id'))
+                <a href="{{ route('cliente.cuenta') }}">Mi cuenta</a>
+            @else
+                <a href="{{ route('cliente.login') }}">Ingresar</a>
+            @endif
 
             <a href="{{ route('carrito.ver') }}">
                 🛒 Carrito
@@ -1239,6 +1369,13 @@
                     <span class="cart-badge" data-cart-badge hidden>0</span>
                 @endif
             </a>
+
+            @if (session('cliente_ecommerce_id'))
+                <form class="nav-form" action="{{ route('cliente.logout') }}" method="POST">
+                    @csrf
+                    <button class="nav-button" type="submit">Salir</button>
+                </form>
+            @endif
 
         </nav>
         <div id="toast-container" class="toast-container"></div>
@@ -1482,7 +1619,37 @@
             });
         }
 
+        function setupColombiaSelectors() {
+            const departamentos = window.lorentinaDepartamentos || {};
+
+            document.querySelectorAll('.department-select').forEach((departmentSelect) => {
+                const form = departmentSelect.closest('form') || document;
+                const municipalitySelect = form.querySelector('.municipality-select');
+
+                if (!municipalitySelect) return;
+
+                const selectedMunicipio = departmentSelect.dataset.selectedMunicipio || municipalitySelect.dataset.selectedMunicipio || '';
+                const renderMunicipios = () => {
+                    const municipios = departamentos[departmentSelect.value] || [];
+                    municipalitySelect.innerHTML = '<option value="">Selecciona un municipio</option>';
+
+                    municipios.forEach((municipio) => {
+                        const option = document.createElement('option');
+                        option.value = municipio;
+                        option.textContent = municipio;
+                        option.selected = municipio === selectedMunicipio;
+                        municipalitySelect.appendChild(option);
+                    });
+                };
+
+                departmentSelect.addEventListener('change', renderMunicipios);
+                renderMunicipios();
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            setupColombiaSelectors();
+
             if (document.body.dataset.cartCleared === '1') {
                 setStoredCart({});
                 setupLiveCatalogSearch();

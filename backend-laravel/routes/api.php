@@ -7,6 +7,7 @@ use App\Http\Controllers\TarifaController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\VentaController;
+use App\Http\Controllers\EcommerceAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -44,3 +45,9 @@ Route::put('/clientes/{id}', [ClienteController::class, 'update']);
 Route::get('/ventas', [VentaController::class, 'index']);
 Route::get('/ventas/catalogo', [VentaController::class, 'catalogo']);
 Route::post('/ventas', [VentaController::class, 'store']);
+
+// E-commerce admin
+Route::get('/ecommerce/productos', [EcommerceAdminController::class, 'productos']);
+Route::patch('/ecommerce/productos/{producto}/visibilidad', [EcommerceAdminController::class, 'actualizarVisibilidad']);
+Route::patch('/ecommerce/productos/{producto}/precio', [EcommerceAdminController::class, 'actualizarPrecio']);
+Route::patch('/ecommerce/productos/{producto}/promocion', [EcommerceAdminController::class, 'actualizarPromocion']);

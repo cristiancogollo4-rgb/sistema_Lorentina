@@ -7,6 +7,7 @@ use App\Models\DetalleVenta;
 use App\Models\InventarioZapato;
 use App\Models\InventarioMovimiento;
 use App\Models\Local;
+use App\Models\PedidoEcommerce;
 use App\Models\Producto;
 use App\Models\User;
 use App\Models\Venta;
@@ -35,9 +36,17 @@ class VentaController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        $result = $ventas->map(function (Venta $venta) {
+        $pedidosOnline = $vendedorId
+            ? collect()
+            : PedidoEcommerce::query()
+                ->with('items')
+                ->latest('created_at')
+                ->get();
+
+        $ventasInternas = $ventas->map(function (Venta $venta) {
                 return [
                     'id' => $venta->id,
+                    'origen' => 'INTERNA',
                     'fechaVenta' => optional($venta->fecha_venta)->toISOString(),
                     'cliente' => $venta->cliente?->nombre,
                     'tipoCliente' => $venta->cliente?->tipo_cliente,
@@ -63,6 +72,41 @@ class VentaController extends Controller
                     })->values(),
                 ];
             })
+            ->values();
+
+        $ventasOnline = $pedidosOnline->map(function (PedidoEcommerce $pedido) {
+            return [
+                'id' => 'online-' . $pedido->id,
+                'origen' => 'ONLINE',
+                'fechaVenta' => optional($pedido->created_at)->toISOString(),
+                'cliente' => $pedido->cliente_nombre,
+                'tipoCliente' => 'DETAL',
+                'vendedor' => 'E-commerce',
+                'canalVenta' => 'ONLINE',
+                'local' => null,
+                'metodoPago' => 'WhatsApp',
+                'titularCuenta' => null,
+                'notas' => trim("Pedido online {$pedido->codigo}. Estado: {$pedido->estado}. Direccion: {$pedido->cliente_direccion}, {$pedido->cliente_ciudad}. " . ($pedido->notas ?: '')),
+                'total' => (float) $pedido->total,
+                'totalPares' => (int) $pedido->items->sum('cantidad'),
+                'items' => $pedido->items->map(function ($item) {
+                    return [
+                        'id' => 'online-item-' . $item->id,
+                        'numeroOrden' => null,
+                        'referencia' => $item->referencia ?: $item->nombre,
+                        'color' => $item->color,
+                        'talla' => $item->talla,
+                        'cantidad' => $item->cantidad,
+                        'precioUnitario' => (float) $item->precio_unitario,
+                        'subtotal' => (float) $item->subtotal,
+                    ];
+                })->values(),
+            ];
+        });
+
+        $result = $ventasInternas
+            ->concat($ventasOnline)
+            ->sortByDesc('fechaVenta')
             ->values();
 
         return response()->json($result);

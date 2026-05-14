@@ -118,9 +118,9 @@
                 <p>Tu pedido será enviado por WhatsApp para coordinar pago, fabricación o envío.</p>
 
                 <div class="order-actions">
-                    <button onclick="sendWhatsAppOrder()" class="btn btn-whatsapp" type="button">
-                        📱 Finalizar por WhatsApp
-                    </button>
+                    <a href="{{ route('checkout.index') }}" class="btn btn-whatsapp">
+                        Finalizar compra
+                    </a>
 
                     <form action="{{ route('carrito.vaciar') }}" method="POST">
                         @csrf
@@ -147,14 +147,3 @@
 </div>
 
 @endsection
-
-@push('scripts')
-<script>
-    function sendWhatsAppOrder() {
-        const items = @json($carrito);
-        const message = buildLorentinaOrderMessage(items);
-        const whatsappUrl = `https://wa.me/{{ $whatsappNumber }}?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank', 'noopener');
-    }
-</script>
-@endpush
