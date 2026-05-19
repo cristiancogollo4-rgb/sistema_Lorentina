@@ -15,6 +15,16 @@
             <span>${{ number_format($pedido->total, 0, ',', '.') }}</span>
         </div>
 
+        <div class="payment-status">
+            <span>Metodo de pago</span>
+            <strong>{{ $pedido->metodo_pago === 'mercado_pago' ? 'Mercado Pago' : 'WhatsApp' }}</strong>
+        </div>
+
+        <div class="payment-status">
+            <span>Estado del pago</span>
+            <strong>{{ ucfirst(str_replace('_', ' ', $pedido->estado_pago)) }}</strong>
+        </div>
+
         <br>
 
         <h3>Productos</h3>
@@ -32,9 +42,23 @@
 
         <br>
 
-        <div class="alert">
-            Tu pedido quedo listo. Envia el resumen por WhatsApp para coordinar el pago y la entrega.
-        </div>
+        @if ($mercadoPagoData && $mercadoPagoData['init_point'])
+            <div class="alert">
+                Tu pedido quedo listo. Continua a Mercado Pago para completar el pago en linea.
+            </div>
+
+            <a href="{{ $mercadoPagoData['init_point'] }}" target="_blank" rel="noopener noreferrer" class="btn payment-gateway-form">
+                Pagar con Mercado Pago
+            </a>
+        @elseif ($pedido->metodo_pago === 'mercado_pago')
+            <div class="alert">
+                No se pudo crear el enlace de pago. Revisa el Access Token de Mercado Pago o envia el pedido por WhatsApp.
+            </div>
+        @else
+            <div class="alert">
+                Tu pedido quedo listo. Envia el resumen por WhatsApp para coordinar el pago y la entrega.
+            </div>
+        @endif
 
         <div class="hero-actions">
             <a href="{{ $whatsappUrl }}" target="_blank" rel="noopener noreferrer" class="btn">

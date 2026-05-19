@@ -44,4 +44,14 @@ return [
         'city' => env('LORENTINA_CITY', 'Bucaramanga, Colombia'),
     ],
 
+    'mercado_pago' => [
+        'enabled' => env('MERCADO_PAGO_ENABLED', false),
+        'access_token' => env('MERCADO_PAGO_ACCESS_TOKEN'),
+        'currency' => env('MERCADO_PAGO_CURRENCY', 'COP'),
+        'preferences_url' => env('MERCADO_PAGO_PREFERENCES_URL', 'https://api.mercadopago.com/checkout/preferences'),
+        'use_sandbox_init_point' => env('MERCADO_PAGO_USE_SANDBOX_INIT_POINT', true),
+        'notification_url' => env('MERCADO_PAGO_NOTIFICATION_URL'),
+        'verify_ssl' => env('MERCADO_PAGO_VERIFY_SSL', true),
+    ],
+
 ];

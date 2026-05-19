@@ -746,6 +746,61 @@
             margin-top: 20px;
         }
 
+        .payment-options {
+            display: grid;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .payment-option {
+            align-items: flex-start;
+            background: #fffaf5;
+            border: 1px solid #ead6c6;
+            border-radius: 14px;
+            cursor: pointer;
+            display: flex;
+            gap: 12px;
+            padding: 14px;
+        }
+
+        .payment-option input {
+            margin-top: 5px;
+        }
+
+        .payment-option strong,
+        .payment-option small {
+            display: block;
+        }
+
+        .payment-option small {
+            color: #6f635b;
+            font-weight: 700;
+            margin-top: 3px;
+        }
+
+        .payment-option:has(input:checked) {
+            border-color: var(--primary);
+            box-shadow: 0 8px 20px rgba(50, 34, 20, 0.1);
+        }
+
+        .payment-option:has(input:disabled) {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .payment-status {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            border-top: 1px solid #efe4d8;
+            padding-top: 14px;
+            margin-top: 14px;
+        }
+
+        .payment-gateway-form {
+            margin-bottom: 16px;
+        }
+
         .account-callout {
             align-items: center;
             background: #fffaf5;
@@ -1385,6 +1440,14 @@
         <div class="container">
             <div class="alert">
                 {{ session('success') }}
+            </div>
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="container">
+            <div class="alert">
+                {{ session('error') }}
             </div>
         </div>
     @endif

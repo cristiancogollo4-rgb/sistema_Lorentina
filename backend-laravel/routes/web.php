@@ -28,6 +28,8 @@ Route::post('/checkout', [EcommerceController::class, 'guardarCheckout'])->name(
 
 Route::get('/checkout/gracias/{pedido}', [EcommerceController::class, 'gracias'])->name('checkout.gracias');
 
+Route::get('/checkout/mercado-pago/respuesta/{pedido}', [EcommerceController::class, 'respuestaMercadoPago'])->name('checkout.mercado-pago.respuesta');
+
 Route::get('/clientes/login', [EcommerceController::class, 'loginClienteForm'])->name('cliente.login');
 
 Route::post('/clientes/login', [EcommerceController::class, 'loginCliente'])->name('cliente.login.guardar');

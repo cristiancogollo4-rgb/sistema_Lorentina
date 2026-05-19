@@ -6,7 +6,7 @@
     <div class="section-head">
         <div>
             <h2>Finalizar compra</h2>
-            <p>Completa tus datos para crear el pedido y coordinar el pago por WhatsApp.</p>
+            <p>Completa tus datos para crear el pedido y elegir como quieres pagar.</p>
         </div>
 
         <a href="{{ route('carrito.ver') }}" class="btn btn-outline">
@@ -150,10 +150,41 @@
                     </div>
                 @endunless
 
-                <input type="hidden" name="metodo_pago" value="whatsapp">
+                <div class="payment-options">
+                    <label class="payment-option">
+                        <input
+                            type="radio"
+                            name="metodo_pago"
+                            value="mercado_pago"
+                            @checked(old('metodo_pago', $mercadoPagoDisponible ? 'mercado_pago' : 'whatsapp') === 'mercado_pago')
+                            @disabled(! $mercadoPagoDisponible)
+                        >
+                        <span>
+                            <strong>Mercado Pago</strong>
+                            <small>Pago en linea con tarjeta, cuenta Mercado Pago u otros medios disponibles.</small>
+                        </span>
+                    </label>
+
+                    <label class="payment-option">
+                        <input
+                            type="radio"
+                            name="metodo_pago"
+                            value="whatsapp"
+                            @checked(old('metodo_pago', $mercadoPagoDisponible ? 'mercado_pago' : 'whatsapp') === 'whatsapp')
+                        >
+                        <span>
+                            <strong>WhatsApp</strong>
+                            <small>Crear pedido y coordinar el pago manualmente.</small>
+                        </span>
+                    </label>
+                </div>
 
                 <div class="alert">
-                    El pago se coordina por WhatsApp despues de crear el pedido.
+                    @if ($mercadoPagoDisponible)
+                        Si eliges Mercado Pago, primero se crea el pedido y luego veras el boton para ir al pago seguro.
+                    @else
+                        Mercado Pago esta listo en el codigo, pero falta el Access Token en el archivo .env. Por ahora puedes finalizar por WhatsApp.
+                    @endif
                 </div>
 
                 <div class="form-group">
@@ -163,7 +194,7 @@
                 </div>
 
                 <button class="btn" type="submit">
-                    Crear pedido
+                    Crear pedido y continuar
                 </button>
             </form>
         </section>

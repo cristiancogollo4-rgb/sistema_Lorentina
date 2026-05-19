@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -258,7 +260,9 @@ class EcommerceController extends Controller
         $total = $this->totalCarrito($carrito);
         $departamentos = $this->departamentosColombia();
 
-        return view('checkout.index', compact('carrito', 'total', 'clienteEcommerce', 'direcciones', 'departamentos'));
+        $mercadoPagoDisponible = $this->mercadoPagoDisponible();
+
+        return view('checkout.index', compact('carrito', 'total', 'clienteEcommerce', 'direcciones', 'departamentos', 'mercadoPagoDisponible'));
     }
 
     public function guardarCheckout(Request $request)
@@ -294,10 +298,18 @@ class EcommerceController extends Controller
             'cliente_municipio' => ['nullable', 'string', 'max:120'],
             'cliente_direccion' => ['nullable', 'string', 'max:220'],
             'notas' => ['nullable', 'string', 'max:800'],
-            'metodo_pago' => ['nullable', Rule::in(['whatsapp'])],
+            'metodo_pago' => ['nullable', Rule::in(['whatsapp', 'mercado_pago'])],
             'crear_cuenta' => ['nullable', 'boolean'],
             'password' => [$crearCuenta ? 'required' : 'nullable', 'string', 'min:6', 'confirmed'],
         ], $this->mensajesValidacionCliente());
+
+        $metodoPago = $data['metodo_pago'] ?? 'whatsapp';
+
+        if ($metodoPago === 'mercado_pago' && ! $this->mercadoPagoDisponible()) {
+            return back()
+                ->withInput()
+                ->with('error', 'Mercado Pago aun no esta configurado. Puedes finalizar el pedido por WhatsApp.');
+        }
 
         $direccionGuardada = null;
 
@@ -346,15 +358,18 @@ class EcommerceController extends Controller
             $this->iniciarSesionCliente($clienteEcommerce);
         }
 
-        $pedido = DB::transaction(function () use ($carrito, $data, $clienteEcommerce): PedidoEcommerce {
+        $pedido = DB::transaction(function () use ($carrito, $data, $clienteEcommerce, $metodoPago): PedidoEcommerce {
             $subtotal = $this->totalCarrito($carrito);
+            $codigo = $this->generarCodigoPedido();
 
             $pedido = PedidoEcommerce::create([
                 'cliente_ecommerce_id' => $clienteEcommerce?->id,
-                'codigo' => $this->generarCodigoPedido(),
+                'codigo' => $codigo,
                 'estado' => 'pendiente_pago',
                 'estado_pago' => 'pendiente',
-                'metodo_pago' => 'whatsapp',
+                'metodo_pago' => $metodoPago,
+                'pasarela' => $metodoPago === 'mercado_pago' ? 'mercado_pago' : null,
+                'referencia_pago' => $metodoPago === 'mercado_pago' ? $codigo : null,
                 'cliente_nombre' => $data['cliente_nombre'],
                 'cliente_telefono' => $data['cliente_telefono'],
                 'cliente_email' => $data['cliente_email'] ?? null,
@@ -438,10 +453,12 @@ class EcommerceController extends Controller
         }
 
         $this->iniciarSesionCliente($cliente);
+        $request->session()->forget('carrito');
 
         return redirect()
             ->route('cliente.cuenta')
-            ->with('success', 'Sesion iniciada correctamente.');
+            ->with('success', 'Sesion iniciada correctamente. El carrito anterior fue limpiado.')
+            ->with('cart_cleared', true);
     }
 
     public function cuentaCliente()
@@ -528,8 +545,49 @@ class EcommerceController extends Controller
     {
         $pedido->load('items');
         $whatsappUrl = $this->whatsappPedidoUrl($pedido);
+        $mercadoPagoData = $this->mercadoPagoCheckoutData($pedido);
 
-        return view('checkout.gracias', compact('pedido', 'whatsappUrl'));
+        return view('checkout.gracias', compact('pedido', 'whatsappUrl', 'mercadoPagoData'));
+    }
+
+    public function respuestaMercadoPago(Request $request, PedidoEcommerce $pedido)
+    {
+        $paymentId = $request->query('payment_id') ?? $request->query('collection_id');
+        $preferenceId = $request->query('preference_id');
+        $status = strtolower((string) ($request->query('status') ?? $request->query('collection_status') ?? ''));
+        $statusDetail = $request->query('status_detail') ?? $status;
+
+        if ($paymentId) {
+            $pedido->mercado_pago_payment_id = (string) $paymentId;
+        }
+
+        if ($preferenceId && ! $pedido->mercado_pago_preference_id) {
+            $pedido->mercado_pago_preference_id = (string) $preferenceId;
+        }
+
+        if ($statusDetail) {
+            $pedido->mercado_pago_status_detail = (string) $statusDetail;
+        }
+
+        if ($status === 'approved') {
+            $pedido->estado = 'confirmado';
+            $pedido->estado_pago = 'pagado';
+        } elseif (in_array($status, ['rejected', 'cancelled', 'refunded', 'charged_back'], true)) {
+            $pedido->estado_pago = 'rechazado';
+        } elseif ($status === 'pending' || $status === 'in_process') {
+            $pedido->estado_pago = 'pendiente';
+        }
+
+        if ($paymentId || $preferenceId || $status || $statusDetail) {
+            $pedido->updated_at = now();
+            $pedido->save();
+        }
+
+        return redirect()
+            ->route('checkout.gracias', $pedido)
+            ->with('success', $pedido->estado_pago === 'pagado'
+                ? 'Pago registrado correctamente.'
+                : 'Regresaste desde Mercado Pago. Revisa el estado del pago.');
     }
 
     public function eliminarCarrito($key)
@@ -711,6 +769,97 @@ class EcommerceController extends Controller
         } while (PedidoEcommerce::where('codigo', $codigo)->exists());
 
         return $codigo;
+    }
+
+    private function mercadoPagoDisponible(): bool
+    {
+        return (bool) config('services.mercado_pago.enabled')
+            && filled(config('services.mercado_pago.access_token'));
+    }
+
+    private function mercadoPagoCheckoutData(PedidoEcommerce $pedido): ?array
+    {
+        if (
+            ! $this->mercadoPagoDisponible()
+            || $pedido->metodo_pago !== 'mercado_pago'
+            || $pedido->estado_pago === 'pagado'
+        ) {
+            return null;
+        }
+
+        if (! $pedido->mercado_pago_init_point) {
+            $this->crearPreferenciaMercadoPago($pedido);
+        }
+
+        return [
+            'init_point' => $pedido->mercado_pago_init_point,
+            'preference_id' => $pedido->mercado_pago_preference_id,
+        ];
+    }
+
+    private function crearPreferenciaMercadoPago(PedidoEcommerce $pedido): void
+    {
+        $pedido->loadMissing('items');
+        $currency = config('services.mercado_pago.currency', 'COP');
+
+        $payload = [
+            'items' => $pedido->items->map(fn ($item): array => [
+                'id' => (string) ($item->producto_id ?? $item->id),
+                'title' => "{$item->nombre} Talla {$item->talla}",
+                'description' => trim("{$item->referencia} {$item->color}"),
+                'quantity' => (int) $item->cantidad,
+                'currency_id' => $currency,
+                'unit_price' => (float) $item->precio_unitario,
+            ])->values()->all(),
+            'payer' => array_filter([
+                'name' => $pedido->cliente_nombre,
+                'email' => $pedido->cliente_email,
+                'phone' => [
+                    'number' => $pedido->cliente_telefono,
+                ],
+            ]),
+            'external_reference' => $pedido->referencia_pago ?: $pedido->codigo,
+            'back_urls' => [
+                'success' => route('checkout.mercado-pago.respuesta', $pedido),
+                'failure' => route('checkout.mercado-pago.respuesta', $pedido),
+                'pending' => route('checkout.mercado-pago.respuesta', $pedido),
+            ],
+            'statement_descriptor' => 'LORENTINA',
+        ];
+
+        if (filled(config('services.mercado_pago.notification_url'))) {
+            $payload['notification_url'] = config('services.mercado_pago.notification_url');
+        }
+
+        try {
+            $response = Http::withToken(config('services.mercado_pago.access_token'))
+                ->withOptions([
+                    'verify' => (bool) config('services.mercado_pago.verify_ssl', true),
+                ])
+                ->acceptJson()
+                ->post(config('services.mercado_pago.preferences_url'), $payload);
+        } catch (ConnectionException $exception) {
+            report($exception);
+
+            return;
+        }
+
+        if (! $response->successful()) {
+            report(new \RuntimeException('No se pudo crear la preferencia de Mercado Pago: ' . $response->body()));
+
+            return;
+        }
+
+        $preference = $response->json();
+        $initPoint = config('services.mercado_pago.use_sandbox_init_point')
+            ? ($preference['sandbox_init_point'] ?? $preference['init_point'] ?? null)
+            : ($preference['init_point'] ?? $preference['sandbox_init_point'] ?? null);
+
+        $pedido->forceFill([
+            'mercado_pago_preference_id' => $preference['id'] ?? null,
+            'mercado_pago_init_point' => $initPoint,
+            'updated_at' => now(),
+        ])->save();
     }
 
     private function clienteActual(): ?ClienteEcommerce
