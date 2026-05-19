@@ -12,17 +12,17 @@ import EcommerceAdmin from './EcommerceAdmin';
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [usuario, setUsuario] = useState(null);
+  const [usuario] = useState(() => {
+    const usuarioGuardado = localStorage.getItem('usuarioLorentina');
+    return usuarioGuardado ? JSON.parse(usuarioGuardado) : null;
+  });
   const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
-    const usuarioGuardado = localStorage.getItem('usuarioLorentina');
-    if (!usuarioGuardado) {
+    if (!usuario) {
       navigate('/');
-    } else {
-      setUsuario(JSON.parse(usuarioGuardado));
     }
-  }, [navigate]);
+  }, [navigate, usuario]);
 
   const handleLogout = () => {
     localStorage.removeItem('usuarioLorentina');

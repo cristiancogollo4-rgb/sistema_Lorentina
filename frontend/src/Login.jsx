@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import api from './api';
 import { useNavigate } from 'react-router-dom';
 
@@ -72,7 +72,7 @@ function Login() {
       setLegendIndex((prev) => (prev + 1) % leyendas.length);
     }, 5500);
     return () => clearInterval(interval);
-  }, []);
+  }, [leyendas.length]);
 
   const handleLogin = async (e) => {
     e.preventDefault();

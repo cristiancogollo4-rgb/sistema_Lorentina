@@ -121,7 +121,7 @@ function GestionProduccion() {
         cargarDatos();
         alert("¡Asignado correctamente!");
     })
-    .catch(err => alert("Error al asignar"));
+    .catch(() => alert("Error al asignar"));
   };
 
   const pasarAStock = (orden) => {

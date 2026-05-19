@@ -60,39 +60,43 @@ function Produccion({ usuario }) {
 
   const productoSeleccionado = productosProduccion.find(p => String(p.id) === String(productoId));
 
-  useEffect(() => {
-    api.get('/usuarios').then(res => setEmpleados(res.data)).catch(err => console.error(err));
-    cargarTarifas();
-    cargarProductosProduccion();
-    cargarMayoristas();
-  }, []);
-
-  const cargarTarifas = async () => {
+  async function cargarTarifas() {
     try {
       const res = await api.get('/tarifas');
       setTarifas(res.data || []);
     } catch (err) {
       console.error(err);
     }
-  };
+  }
 
-  const cargarProductosProduccion = async () => {
+  async function cargarProductosProduccion() {
     try {
       const res = await api.get('/produccion/catalogo');
       setProductosProduccion(res.data || []);
     } catch (err) {
       console.error(err);
     }
-  };
+  }
 
-  const cargarMayoristas = async () => {
+  async function cargarMayoristas() {
     try {
       const res = await api.get('/clientes?tipo=MAYORISTA');
       setMayoristas(res.data || []);
     } catch (err) {
       console.error(err);
     }
-  };
+  }
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      api.get('/usuarios').then(res => setEmpleados(res.data)).catch(err => console.error(err));
+      cargarTarifas();
+      cargarProductosProduccion();
+      cargarMayoristas();
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, []);
 
   const handleTarifaChange = (id, campo, valor) => {
     setTarifas(tarifas.map(t => t.id === id ? { ...t, [campo]: parseInt(valor) || 0 } : t));

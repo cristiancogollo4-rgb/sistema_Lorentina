@@ -108,7 +108,9 @@ function Empleados() {
     try {
         await api.delete(`/usuarios/${id}`);
         cargarUsuarios();
-    } catch (error) { alert("No se pudo eliminar"); }
+    } catch {
+        alert("No se pudo eliminar");
+    }
   };
 
   const usuariosFiltrados = usuarios.filter(u => {

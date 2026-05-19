@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from './api';
 import LoadingState from './components/LoadingState';
 
@@ -55,10 +55,9 @@ function DashboardResumen({ usuario, onNavigate }) {
       ];
 
 
-  const [vendedores, setVendedores] = useState([]);
-  const [filtroVendedor, setFiltroVendedor] = useState('');
+  const filtroVendedor = '';
 
-  useEffect(() => {
+  const cargarResumen = useCallback(() => {
     setLoading(true);
     const vId = esVendedor ? usuario.id : filtroVendedor;
     const params = `?rango=produccion${vId ? `&vendedor_id=${vId}` : ''}`;
@@ -67,7 +66,6 @@ function DashboardResumen({ usuario, onNavigate }) {
       .then(res => {
         try {
           const ordenes = Array.isArray(res.data.ordenes) ? res.data.ordenes : [];
-          setVendedores(res.data.vendedores || []);
           
           // Calcular distribución actual de las órdenes activas
           const dist = { CORTE: 0, ARMADO: 0, COSTURA: 0, SOLADURA: 0, EMPLANTILLADO: 0 };
@@ -105,7 +103,12 @@ function DashboardResumen({ usuario, onNavigate }) {
       })
       .catch(err => console.error("Error cargando dashboard:", err))
       .finally(() => setLoading(false));
-  }, [filtroVendedor]);
+  }, [esVendedor, filtroVendedor, usuario.id]);
+
+  useEffect(() => {
+    const id = window.setTimeout(cargarResumen, 0);
+    return () => window.clearTimeout(id);
+  }, [cargarResumen]);
 
   return (
     <div className="fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '30px' }}>

@@ -263,7 +263,7 @@ function EcommerceAdmin() {
           <div style={priceGrid}>
             {productosFiltrados.map((producto) => (
               <ProductPriceEditor
-                key={producto.id}
+                key={`${producto.id}-${producto.precio_detal}`}
                 producto={producto}
                 disabled={guardandoId === producto.id}
                 onSave={actualizarPrecio}
@@ -280,7 +280,7 @@ function EcommerceAdmin() {
           <div style={priceGrid}>
             {productosFiltrados.map((producto) => (
               <PromoEditor
-                key={producto.id}
+                key={`${producto.id}-${producto.en_promocion}-${producto.precio_promocion}-${producto.etiqueta_promocion}`}
                 producto={producto}
                 disabled={guardandoId === producto.id}
                 onSave={actualizarPromocion}
@@ -344,7 +344,7 @@ function CatalogTable({ productos, guardandoId, onToggle }) {
               </td>
               <td style={td}>
                 <div style={productCell}>
-                  <ProductImage producto={item} style={thumb} />
+                  <ProductImage key={`${item.id}-${(item.imagenes_src || []).join('|')}-${item.imagen_src || ''}`} producto={item} style={thumb} />
                   <div>
                     <strong style={productTitle}>{item.nombre_modelo}</strong>
                     <div style={muted}>{item.referencia} / {item.color}</div>
@@ -378,10 +378,6 @@ function ProductImage({ producto, style }) {
   const [index, setIndex] = useState(0);
   const src = urls[index];
 
-  useEffect(() => {
-    setIndex(0);
-  }, [producto.id, urls.join('|')]);
-
   if (!src || index >= urls.length) {
     return <div style={{ ...style, ...imageFallback }}>Sin foto</div>;
   }
@@ -402,10 +398,6 @@ function ProductImage({ producto, style }) {
 
 function ProductPriceEditor({ producto, disabled, onSave }) {
   const [precio, setPrecio] = useState(producto.precio_detal || 0);
-
-  useEffect(() => {
-    setPrecio(producto.precio_detal || 0);
-  }, [producto.id, producto.precio_detal]);
 
   return (
     <form
@@ -435,12 +427,6 @@ function PromoEditor({ producto, disabled, onSave }) {
   const [activa, setActiva] = useState(Boolean(producto.en_promocion));
   const [precioPromo, setPrecioPromo] = useState(producto.precio_promocion || '');
   const [etiqueta, setEtiqueta] = useState(producto.etiqueta_promocion || 'Promo');
-
-  useEffect(() => {
-    setActiva(Boolean(producto.en_promocion));
-    setPrecioPromo(producto.precio_promocion || '');
-    setEtiqueta(producto.etiqueta_promocion || 'Promo');
-  }, [producto.id, producto.en_promocion, producto.precio_promocion, producto.etiqueta_promocion]);
 
   return (
     <form

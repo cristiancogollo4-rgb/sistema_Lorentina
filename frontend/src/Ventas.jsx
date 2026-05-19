@@ -289,13 +289,6 @@ export default function Ventas({ usuario }) {
     });
   };
 
-  const agregarLinea = () => {
-    setForm((prev) => ({
-      ...prev,
-      items: [...prev.items, nuevaLinea()],
-    }));
-  };
-
   const eliminarLinea = (index) => {
     setForm((prev) => ({
       ...prev,
@@ -387,9 +380,7 @@ export default function Ventas({ usuario }) {
     }
   };
 
-  const totalParesVendidos = ventas.reduce((acc, venta) => acc + (venta.totalPares || 0), 0);
   const totalVendido = ventas.reduce((acc, venta) => acc + (venta.total || 0), 0);
-  const ventasLocales = ventas.filter((venta) => venta.canalVenta === 'LOCAL').length;
 
   return (
     <div className="fade-in" style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -746,9 +737,6 @@ export default function Ventas({ usuario }) {
                                   items: prev.items.filter(it => it.seleccion !== info.key)
                                 }));
                               } else {
-                                const precioSugerido = (clientes.find(c => c.id === Number(form.cliente_id))?.tipo_cliente === 'MAYORISTA' || clientes.find(c => c.id === Number(form.cliente_id))?.tipo_cliente === 'MAYOR') 
-                                  ? 0 : 0; // Se podria precargar el precio del producto aqui
-                                
                                 setForm(prev => ({
                                   ...prev,
                                   items: [...prev.items, {
@@ -931,24 +919,9 @@ const inputStyle = { width: '100%', padding: '10px 12px', border: '1.5px solid #
 const selectStyle = { ...inputStyle, background: 'white', cursor: 'pointer' };
 const btnPrimario = { background: '#582e2e', color: 'white', border: 'none', padding: '11px 24px', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.95rem' };
 const btnSecundario = { background: '#f5f5f5', color: '#555', border: 'none', padding: '11px 22px', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.95rem' };
-const btnEliminar = { background: '#fff1f2', color: '#b91c1c', border: '1px solid #fecdd3', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', alignSelf: 'end' };
 const lineaVenta = { display: 'flex', gap: '12px', alignItems: 'flex-end', background: '#fcfcfc', border: '1px solid #eee', borderRadius: '14px', padding: '14px' };
-const subtotalBox = { padding: '10px 12px', borderRadius: '10px', background: '#f6f6f6', border: '1px solid #e3e3e3', fontWeight: 'bold', color: '#333', minHeight: '42px', display: 'flex', alignItems: 'center' };
 const errorBox = { background: '#fff1f2', color: '#b91c1c', border: '1px solid #fecdd3', borderRadius: '12px', padding: '12px 14px', fontWeight: '600', marginBottom: '16px' };
 const btnVerDetalle = { background: '#f8f4f1', color: '#582e2e', border: '1px solid #eaddd7', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' };
-
-const itemChip = {
-  background: '#f8f4f1',
-  border: '1px solid #eaddd7',
-  borderRadius: '8px',
-  padding: '5px 10px',
-  fontSize: '0.82rem',
-  color: '#582e2e',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '8px',
-  boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-};
 
 const tagTalla = {
   background: '#eaddd7',
@@ -998,6 +971,7 @@ function NuevoClienteModal({ onCerrar, onGuardar }) {
       onGuardar(res.data);
       onCerrar();
     } catch (err) {
+      console.error(err);
       alert('Error al guardar cliente');
     } finally {
       setCargando(false);
